@@ -8,13 +8,16 @@ namespace Dqlite.Net
     public class DqliteNode : IDisposable
     {
         public ulong Id { get; }
+        public string Address { get; }
+        
         private bool active;
         private readonly IntPtr node;
 
-        private DqliteNode(IntPtr node, ulong id)
+        private DqliteNode(IntPtr node, ulong id, string address)
         {
             this.Id = id;
             this.node = node;
+            this.Address = address;
         }
 
         public void Start()
@@ -43,8 +46,8 @@ namespace Dqlite.Net
         {
             CheckError(dqlite_node_create(id, address, dataDir, out var node));
             CheckError(dqlite_node_set_bind_address(node, address));
-
-            return new DqliteNode(node, id);
+            
+            return new DqliteNode(node, id, address);
         }
     }
 }

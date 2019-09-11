@@ -25,7 +25,7 @@ namespace Dqlite.Net
         {
             using(var client = new DqliteClient())
             {
-                client.Open("127.0.0.1", 5000);
+                client.Open("127.0.0.1:5000");
                 var database = client.OpenDatabase("main");
                 
                 client.ExecuteNonQuery(database, "CREATE TABLE IF NOT EXISTS Sample(n INT)");

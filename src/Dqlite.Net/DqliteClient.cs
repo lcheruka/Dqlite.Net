@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Tasks;
 using Dqlite.Net.Messages;
 using static Dqlite.Net.Utils;
 
@@ -22,12 +24,16 @@ namespace Dqlite.Net
             this.client.NoDelay = true;
         }
 
-        public void Open(string address, int port)
+        public void Open(string address)
         {
+            if(!TryParseAddress(address, out var host, out var port))
+            {
+                throw new FormatException("Invalid address format");
+            }
             var span = (Span<byte>)stackalloc byte[8];
             span.Write(VERSION);
 
-            this.client.Connect(address, port);
+            this.client.Connect(host, port);
             this.stream = this.client.GetStream();
             this.stream.Write(span);
             this.stream.Flush();
@@ -45,7 +51,7 @@ namespace Dqlite.Net
         public NodeRecord GetLeader()
         {
             var span = (Span<byte>)stackalloc byte[8];
-            this.SendMessage(RequestTypes.RequestLeader, REVISION, span);
+            this.SendMessage(RequestTypes.RequestLeader,  span);
             return this.ReadMessage()
                 .AsNodeResponse();
         }
@@ -54,7 +60,7 @@ namespace Dqlite.Net
         {
             var span = (Span<byte>)stackalloc byte[8];
             span.Write(clientId);
-            this.SendMessage(RequestTypes.RequestClient, REVISION, span);
+            this.SendMessage(RequestTypes.RequestClient,  span);
             this.ReadMessage()
                 .AsWelcomeResponse();
         }
@@ -65,7 +71,7 @@ namespace Dqlite.Net
             var span = (Span<byte>)stackalloc byte[length];
             span.Write(name);
 
-            this.SendMessage(RequestTypes.RequestOpen, REVISION, span);
+            this.SendMessage(RequestTypes.RequestOpen,  span);
             return this.ReadMessage()
                 .AsDatabaseResponse();
         }
@@ -77,7 +83,7 @@ namespace Dqlite.Net
             span.Write((ulong)database.Id)
                 .Write(text);
 
-            this.SendMessage(RequestTypes.RequestPrepare, REVISION, span);
+            this.SendMessage(RequestTypes.RequestPrepare,  span);
             return this.ReadMessage().AsPreparedStatementResponse();
         }
 
@@ -90,7 +96,7 @@ namespace Dqlite.Net
                 .Write(preparedStatement.Id)
                 .Write(parameters);
 
-            this.SendMessage(RequestTypes.RequestExec, REVISION, span);
+            this.SendMessage(RequestTypes.RequestExec,  span);
             return this.ReadMessage().AsStatementResultResponse();
         }
 
@@ -103,7 +109,7 @@ namespace Dqlite.Net
                 .Write(preparedStatement.Id)
                 .Write(parameters);
 
-            this.SendMessage(RequestTypes.RequestQuery, REVISION, span);
+            this.SendMessage(RequestTypes.RequestQuery,  span);
             return new DqliteDataRecord(this);
         }
 
@@ -114,7 +120,7 @@ namespace Dqlite.Net
             span.Write(preparedStatement.DatabaseId)
                 .Write(preparedStatement.Id);
 
-            this.SendMessage(RequestTypes.RequestFinalize, REVISION, span);
+            this.SendMessage(RequestTypes.RequestFinalize,  span);
             ReadMessage().AsAknowledgmentResponse();
         }
 
@@ -127,7 +133,7 @@ namespace Dqlite.Net
                 .Write(text)
                 .Write(parameters);
 
-            this.SendMessage(RequestTypes.RequestExecSQL, REVISION, span);
+            this.SendMessage(RequestTypes.RequestExecSQL,  span);
             return this.ReadMessage().AsStatementResultResponse();
         }
 
@@ -140,7 +146,7 @@ namespace Dqlite.Net
                 .Write(text)
                 .Write(parameters);
 
-            this.SendMessage(RequestTypes.RequestQuerySQL, REVISION, span);
+            this.SendMessage(RequestTypes.RequestQuerySQL,  span);
             return new DqliteDataRecord(this);
         }
 
@@ -149,7 +155,7 @@ namespace Dqlite.Net
             var span = (Span<byte>)new byte[8];
             span.Write((ulong)database.Id);
 
-            this.SendMessage(RequestTypes.RequestInterrupt, REVISION, span);
+            this.SendMessage(RequestTypes.RequestInterrupt,  span);
             var response = default(Message);
             while (!(response?.AsAknowledgmentResponse() ?? false))
             {
@@ -164,7 +170,7 @@ namespace Dqlite.Net
             span.Write(nodeId)
                 .Write(address);
 
-            this.SendMessage(RequestTypes.RequestJoin, REVISION, span);
+            this.SendMessage(RequestTypes.RequestJoin,  span);
             this.ReadMessage()
                 .AsAknowledgmentResponse();
         }
@@ -174,7 +180,7 @@ namespace Dqlite.Net
             var span = (Span<byte>)stackalloc byte[8];
             span.Write(nodeId);
 
-            this.SendMessage(RequestTypes.RequestPromote, REVISION, span);
+            this.SendMessage(RequestTypes.RequestPromote,  span);
             this.ReadMessage()
                 .AsAknowledgmentResponse();
         }
@@ -184,7 +190,7 @@ namespace Dqlite.Net
             var span = (Span<byte>)stackalloc byte[8];
             span.Write(nodeId);
 
-            this.SendMessage(RequestTypes.RequestRemove, REVISION, span);
+            this.SendMessage(RequestTypes.RequestRemove,  span);
             this.ReadMessage()
                 .AsAknowledgmentResponse();
         }
@@ -195,7 +201,7 @@ namespace Dqlite.Net
             var span = (Span<byte>)stackalloc byte[length];
             span.Write(name);
 
-            this.SendMessage(RequestTypes.RequestDump, 0, span);
+            this.SendMessage(RequestTypes.RequestDump, span);
             return this.ReadMessage()
                 .AsDatabaseDumpResponse();
         }
@@ -203,12 +209,12 @@ namespace Dqlite.Net
         public IEnumerable<NodeRecord> EnumerateNodes()
         {
             var span = (Span<byte>) stackalloc byte[8];
-            this.SendMessage(RequestTypes.RequestCluster, 0, span);
+            this.SendMessage(RequestTypes.RequestCluster, span);
             return this.ReadMessage()
                 .AsNodesResponse();
         }
 
-        internal void SendMessage(RequestTypes type, byte revision, Span<byte> data)
+        internal void SendMessage(RequestTypes type, ReadOnlySpan<byte> data)
         {
             if(data.Length % 8 != 0)
             {
@@ -219,7 +225,7 @@ namespace Dqlite.Net
             var header = (Span<byte>)stackalloc byte[8];
             header.Write(size)
                 .Write((byte)type)
-                .Write(revision);
+                .Write(REVISION);
                 
             stream.Write(header);
             stream.Write(data);
@@ -254,7 +260,31 @@ namespace Dqlite.Net
             this.client?.Dispose();
         }
 
-        public static DqliteClient FindLeader(string address, int port)
+        public static async Task<DqliteClient> CreateAsync(bool leaderOnly, params string[] nodes)
+        {
+            for(int i = 0; i < 5;++i)
+            {
+                foreach(var node in nodes)
+                {
+                    try
+                    {
+                        var client = Create(node, leaderOnly);
+                        if(client != null)
+                        {
+                            return client;
+                        }
+                    }
+                    catch
+                    {
+
+                    }
+                }
+                await Task.Delay(250*i+500);
+            }
+            throw new DqliteException(1, "Failed to connect to node");
+        }
+
+        public static DqliteClient Create(string address, bool leaderOnly)
         {
             var client = default(DqliteClient);
             try
@@ -262,18 +292,16 @@ namespace Dqlite.Net
                 while (true)
                 {
                     client = new DqliteClient();
-                    client.Open(address, port);
+                    client.Open(address);
 
                     var leader = client.GetLeader();
                     if (leader == null)
                     {
                         return null;
                     }
-                    else if (leader.Address != $"{address}:{port}")
+                    else if (leaderOnly && leader.Address != address)
                     {
-                        var index = leader.Address.IndexOf(':');
-                        address = leader.Address.Substring(0, index);
-                        port = int.Parse(leader.Address.Substring(index + 1));
+                        address = leader.Address;
                         client.Dispose();
                         continue;
                     }

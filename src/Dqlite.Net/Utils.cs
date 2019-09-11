@@ -29,6 +29,19 @@ namespace Dqlite.Net
             return value;
         }
 
+        public static bool TryParseAddress(ReadOnlySpan<char> value, out string address, out int port )
+        {
+            var index = value.IndexOf(':');
+            if(index == -1 || !int.TryParse(value.Slice(index+1), out port)){
+                address = null;
+                port = 0;
+                return false;
+            }
+
+            address = value.Slice(0, index).ToString();
+            return true;            
+        }
+
         public static int GetSize(DqliteParameter[] parameters)
         {
             var headerBits = 8 + parameters.Length * 8;

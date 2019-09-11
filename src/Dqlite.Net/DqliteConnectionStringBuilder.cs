@@ -12,14 +12,12 @@ namespace Dqlite.Net
         private const int DefaultPort = 6543;
         private const string DatabaseKeyword = "Database";
         private const string LeaderOnlyKeyword = "LeaderOnly";
-        private const string HostKeyword = "Host";
-        private const string PortKeyword = "Port";
+        private const string ServersKeyword = "Servers";
 
         private enum Keywords
         {
             Database,
-            Host,
-            Port,
+            Servers,
             LeaderOnly
         }
 
@@ -27,24 +25,21 @@ namespace Dqlite.Net
         private static readonly IReadOnlyDictionary<string, Keywords> _keywords;
 
         private string _database = string.Empty;
-        private string _host = string.Empty;
-        private int _port = DefaultPort;
+        private string[] _servers =new string[]{$"127.0.0.1:{DefaultPort}"};
         private bool _leaderOnly = false;
 
         static DqliteConnectionStringBuilder()
         {
             var validKeywords = new string[6];
             validKeywords[(int)Keywords.Database] = DatabaseKeyword;
-            validKeywords[(int)Keywords.Host] = HostKeyword;
-            validKeywords[(int)Keywords.Port] = PortKeyword;
+            validKeywords[(int)Keywords.Servers] = ServersKeyword;
             validKeywords[(int)Keywords.LeaderOnly] = LeaderOnlyKeyword;
             _validKeywords = validKeywords;
 
             _keywords = new Dictionary<string, Keywords>(8, StringComparer.OrdinalIgnoreCase)
             {
                 [DatabaseKeyword] = Keywords.Database,
-                [HostKeyword] = Keywords.Host,
-                [PortKeyword] = Keywords.Port,
+                [ServersKeyword] = Keywords.Servers,
                 [LeaderOnlyKeyword] = Keywords.LeaderOnly
             };
         }
@@ -62,15 +57,15 @@ namespace Dqlite.Net
             get => _database;
             set => base[DatabaseKeyword] = _database = value;
         }
-        public virtual string Host
+
+        public virtual string[] Servers
         {
-            get => _host;
-            set => base[HostKeyword] = _host = value;
-        }
-        public virtual int Port
-        {
-            get => _port;
-            set => base[PortKeyword] = _port = value;
+            get => _servers;
+            set
+            {
+                _servers = value;
+                base[ServersKeyword] = string.Join(",",_servers);
+            }
         }
 
         public virtual bool LeaderOnly
@@ -115,16 +110,31 @@ namespace Dqlite.Net
                 switch (GetIndex(keyword))
                 {
                     case Keywords.Database:
-                        Database = Convert.ToString(value, CultureInfo.InvariantCulture);
+                        this.Database = Convert.ToString(value, CultureInfo.InvariantCulture);
                         return;
-                    case Keywords.Host:
-                        Host = Convert.ToString(value, CultureInfo.InvariantCulture);
-                        return;
-                    case Keywords.Port:
-                        Port = Convert.ToInt32(value, CultureInfo.InvariantCulture);
+                    case Keywords.Servers:
+                        var serverListString =  Convert.ToString(value, CultureInfo.InvariantCulture);
+                        var servers =  serverListString.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                        for(int i = 0; i < servers.Length; ++i)
+                        {
+                            var server = servers[i];
+                            if(server.IndexOf(':') == -1)
+                            {
+                                server += $":{DefaultPort}";
+                            }
+
+                            if(!Utils.TryParseAddress(server, out _, out _))
+                            {
+                                throw new FormatException();
+                            }
+
+                            servers[i] = server;
+                        }
+
+                        this.Servers = servers;
                         return;
                     case Keywords.LeaderOnly:
-                        LeaderOnly = Convert.ToBoolean(value, CultureInfo.InvariantCulture);
+                        this.LeaderOnly = Convert.ToBoolean(value, CultureInfo.InvariantCulture);
                         return;
                     default:
                         return;
@@ -181,10 +191,8 @@ namespace Dqlite.Net
             {
                 case Keywords.Database:
                     return Database;
-                case Keywords.Host:
-                    return Host;
-                case Keywords.Port:
-                    return Port;
+                case Keywords.Servers:
+                    return Servers;
                 case Keywords.LeaderOnly:
                     return LeaderOnly;
                 default:
@@ -204,11 +212,8 @@ namespace Dqlite.Net
                 case Keywords.Database:
                     _database = string.Empty;
                     return;
-                case Keywords.Host:
-                    _host = string.Empty;
-                    return;
-                case Keywords.Port:
-                    _port = DefaultPort;
+                case Keywords.Servers:
+                    _servers = new string[]{$"127.0.0.1:{DefaultPort}"};
                     return;
                 case Keywords.LeaderOnly:
                     _leaderOnly = false;

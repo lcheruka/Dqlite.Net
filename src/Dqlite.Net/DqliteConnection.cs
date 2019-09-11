@@ -89,9 +89,9 @@ namespace Dqlite.Net
             {
                 throw new InvalidOperationException();
             }
-            else if (string.IsNullOrEmpty(ConnectionOptions.Host))
+            else if (this.ConnectionOptions.Servers.Length == 0)
             {
-                throw new ArgumentNullException(nameof(ConnectionOptions.Host));
+                throw new ArgumentOutOfRangeException(nameof(ConnectionOptions.Servers));
             }
             else if (string.IsNullOrEmpty(ConnectionOptions.Database))
             {
@@ -102,16 +102,7 @@ namespace Dqlite.Net
 
             try
             {
-                if (ConnectionOptions.LeaderOnly)
-                {
-                    this.Client = DqliteClient.FindLeader(this.ConnectionOptions.Host, this.ConnectionOptions.Port);
-                }
-                else
-                {
-                    this.Client = new DqliteClient();
-                    this.Client.Open(this.ConnectionOptions.Host, this.ConnectionOptions.Port);
-                }
-
+                this.Client = DqliteClient.CreateAsync(this.ConnectionOptions.LeaderOnly, this.ConnectionOptions.Servers).GetAwaiter().GetResult();
                 this.CurrentDatabase = this.Client.OpenDatabase(this.ConnectionOptions.Database);
                 this.State = ConnectionState.Open;
             }
