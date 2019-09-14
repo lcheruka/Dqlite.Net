@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Data;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+
 
 namespace Dqlite.Net
 {
@@ -102,9 +105,13 @@ namespace Dqlite.Net
 
             try
             {
-                this.Client = DqliteClient.CreateAsync(this.ConnectionOptions.LeaderOnly, this.ConnectionOptions.Servers).GetAwaiter().GetResult();
-                this.CurrentDatabase = this.Client.OpenDatabase(this.ConnectionOptions.Database);
-                this.State = ConnectionState.Open;
+                using(var cts = new CancellationTokenSource())
+                {
+                    cts.CancelAfter(30 * 1000);
+                    this.Client = DqliteClient.CreateAsync(this.ConnectionOptions.Servers, this.ConnectionOptions.ConnectAny, cts.Token).GetAwaiter().GetResult();
+                    this.CurrentDatabase = this.Client.OpenDatabase(this.ConnectionOptions.Database);
+                    this.State = ConnectionState.Open;
+                }
             }
             catch
             {

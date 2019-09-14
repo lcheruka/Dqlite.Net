@@ -11,14 +11,14 @@ namespace Dqlite.Net
     {
         private const int DefaultPort = 6543;
         private const string DatabaseKeyword = "Database";
-        private const string LeaderOnlyKeyword = "LeaderOnly";
+        private const string ConnectAnyKeyword = "ConnectAny";
         private const string ServersKeyword = "Servers";
 
         private enum Keywords
         {
             Database,
             Servers,
-            LeaderOnly
+            ConnectAny
         }
 
         private static readonly IReadOnlyList<string> _validKeywords;
@@ -26,21 +26,21 @@ namespace Dqlite.Net
 
         private string _database = string.Empty;
         private string[] _servers =new string[]{$"127.0.0.1:{DefaultPort}"};
-        private bool _leaderOnly = false;
+        private bool _connectAny = true;
 
         static DqliteConnectionStringBuilder()
         {
             var validKeywords = new string[6];
             validKeywords[(int)Keywords.Database] = DatabaseKeyword;
             validKeywords[(int)Keywords.Servers] = ServersKeyword;
-            validKeywords[(int)Keywords.LeaderOnly] = LeaderOnlyKeyword;
+            validKeywords[(int)Keywords.ConnectAny] = ConnectAnyKeyword;
             _validKeywords = validKeywords;
 
             _keywords = new Dictionary<string, Keywords>(8, StringComparer.OrdinalIgnoreCase)
             {
                 [DatabaseKeyword] = Keywords.Database,
                 [ServersKeyword] = Keywords.Servers,
-                [LeaderOnlyKeyword] = Keywords.LeaderOnly
+                [ConnectAnyKeyword] = Keywords.ConnectAny
             };
         }
 
@@ -68,10 +68,10 @@ namespace Dqlite.Net
             }
         }
 
-        public virtual bool LeaderOnly
+        public virtual bool ConnectAny
         {
-            get => _leaderOnly;
-            set => base[LeaderOnlyKeyword] = _leaderOnly = value;
+            get => _connectAny;
+            set => base[ConnectAnyKeyword] = _connectAny = value;
         }
 
         public override ICollection Keys
@@ -133,8 +133,8 @@ namespace Dqlite.Net
 
                         this.Servers = servers;
                         return;
-                    case Keywords.LeaderOnly:
-                        this.LeaderOnly = Convert.ToBoolean(value, CultureInfo.InvariantCulture);
+                    case Keywords.ConnectAny:
+                        this.ConnectAny = Convert.ToBoolean(value, CultureInfo.InvariantCulture);
                         return;
                     default:
                         return;
@@ -190,11 +190,11 @@ namespace Dqlite.Net
             switch (index)
             {
                 case Keywords.Database:
-                    return Database;
+                    return this.Database;
                 case Keywords.Servers:
-                    return Servers;
-                case Keywords.LeaderOnly:
-                    return LeaderOnly;
+                    return this.Servers;
+                case Keywords.ConnectAny:
+                    return this.ConnectAny;
                 default:
                     return null;
             }
@@ -215,8 +215,8 @@ namespace Dqlite.Net
                 case Keywords.Servers:
                     _servers = new string[]{$"127.0.0.1:{DefaultPort}"};
                     return;
-                case Keywords.LeaderOnly:
-                    _leaderOnly = false;
+                case Keywords.ConnectAny:
+                    _connectAny = true;
                     return;
                 default:
                     return;

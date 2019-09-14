@@ -7,6 +7,12 @@ namespace Dqlite.Net
 {
     public class DqliteNode : IDisposable
     {
+
+        static DqliteNode()
+        {
+            var rc = sqlite3_config(1);
+        }
+
         public ulong Id { get; }
         public string Address { get; }
         
@@ -46,6 +52,7 @@ namespace Dqlite.Net
         {
             CheckError(dqlite_node_create(id, address, dataDir, out var node));
             CheckError(dqlite_node_set_bind_address(node, address));
+            CheckError(dqlite_node_set_network_latency(node, 20 * 1000 * 1000000UL));
             
             return new DqliteNode(node, id, address);
         }

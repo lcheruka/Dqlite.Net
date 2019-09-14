@@ -34,10 +34,11 @@ namespace Dqlite.Net
             span.Write(VERSION);
 
             this.client.Connect(host, port);
+            this.client.ReceiveTimeout = 60 * 1000;
             this.stream = this.client.GetStream();
             this.stream.Write(span);
             this.stream.Flush();
-
+            
             try
             {
                 GetLeader();
@@ -260,59 +261,57 @@ namespace Dqlite.Net
             this.client?.Dispose();
         }
 
-        public static async Task<DqliteClient> CreateAsync(bool leaderOnly, params string[] nodes)
+        public static async Task<DqliteClient> CreateAsync(string[] nodes, bool connectAny, CancellationToken cancellationToken)
         {
-            for(int i = 0; i < 5;++i)
+            while(true)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 foreach(var node in nodes)
                 {
                     try
                     {
-                        var client = Create(node, leaderOnly);
-                        if(client != null)
-                        {
-                            return client;
-                        }
+                        var client = Create(node, connectAny, cancellationToken);
+                        return client;
                     }
                     catch
                     {
 
                     }
                 }
-                await Task.Delay(250*i+500);
+                await Task.Delay(500);
             }
             throw new DqliteException(1, "Failed to connect to node");
         }
 
-        public static DqliteClient Create(string address, bool leaderOnly)
+        public static DqliteClient Create(string address, bool connectAny, CancellationToken cancellationToken)
         {
             var client = default(DqliteClient);
-            try
+            while(true)
             {
-                while (true)
+                cancellationToken.ThrowIfCancellationRequested();
+                try
                 {
                     client = new DqliteClient();
                     client.Open(address);
-
-                    var leader = client.GetLeader();
-                    if (leader == null)
+                    
+                    if(!connectAny)
                     {
-                        return null;
-                    }
-                    else if (leaderOnly && leader.Address != address)
-                    {
-                        address = leader.Address;
-                        client.Dispose();
-                        continue;
+                        var leader = client.GetLeader();
+                        if(leader.Address != address)
+                        {
+                            address = leader.Address;
+                            continue;
+                        }
                     }
 
                     return client;                    
                 }
-            }
-            catch
-            {
-                client?.Dispose();
-                throw;
+                catch
+                {
+                    client?.Dispose();
+                    throw;
+                }
             }
         }
     }

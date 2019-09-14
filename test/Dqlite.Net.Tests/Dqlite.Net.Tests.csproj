@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Dqlite.Net\Dqlite.Net.csproj" />
+    <ProjectReference Include="..\Dqlite.Net.DemoApp\Dqlite.Net.DemoApp.csproj" />
   </ItemGroup>
 
 </Project>
