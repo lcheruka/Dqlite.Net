@@ -1,294 +1,310 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Data;
-using System.Text;
+using System.Data.Common;
+using System.Threading;
+using System.Threading.Tasks;
+using Dqlite.Net.Properties;
 
 namespace Dqlite.Net
 {
-    public class DqliteDataReader : IDataReader
+    public class DqliteDataReader : DbDataReader
     {
-        public int Depth => 0;
-        public bool IsClosed { get; private set; }
-        public int RecordsAffected { get; private set; }
-        public int FieldCount => IsClosed ? throw new NotImplementedException() : record.FieldCount;
-        public object this[string name] => IsClosed ? throw new NotImplementedException() : record[name];
-        public object this[int i] => IsClosed ? throw new NotImplementedException() : record[i];
+        public override object this[string name]
+            => this.record == null
+                ? throw new InvalidOperationException(Resources.NoData)
+                : this.record[name];
+        public override object this[int ordinal]
+            => this.record == null
+                ? throw new InvalidOperationException(Resources.NoData)
+                : this.record[ordinal];
+        public override int Depth => 0;
+
+        public override int FieldCount 
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(FieldCount)))
+                : this.record?.Columns?.Length ?? 0;
+
+        public override bool HasRows => this.record?.HasRows ?? false;
+
+        public override bool IsClosed => this.closed;
+
+        public override int RecordsAffected => this.recordsAffected;
 
 
         private DqliteDataRecord record;
-        private bool closeConnection;
+        private int recordsAffected;
+        private bool closed;
+
+        private readonly DqliteConnection connection;
         private readonly DqliteCommand command;
-        private readonly PreparedStatementRecord statement;
-        private readonly DatabaseRecord database;
-        private readonly DqliteParameter[] parameters;
-        private readonly string commandText;
+        private readonly bool closeConnection;
 
-        internal DqliteDataReader(DqliteCommand command, PreparedStatementRecord statement, DqliteParameter[] parameters, bool closeConnection)
+        internal DqliteDataReader(
+            DqliteCommand command, 
+            DqliteDataRecord record,
+            bool closeConnection
+        )
         {
             this.command = command;
-            this.statement = statement;
-            this.parameters = parameters;
+            this.connection = command.Connection;
             this.closeConnection = closeConnection;
+            this.record = record;
+            this.recordsAffected = this.record.RowCount;
         }
 
-        internal DqliteDataReader(DqliteCommand command, DatabaseRecord database, string commandText, DqliteParameter[] parameters, bool closeConnection)
+        public override bool GetBoolean(int ordinal)
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.GetBoolean(ordinal);
+
+        public override byte GetByte(int ordinal)
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.GetByte(ordinal);
+
+        public override long GetBytes(int ordinal, long dataOffset, byte[] buffer, int bufferOffset, int length)
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.GetBytes(ordinal, dataOffset, buffer, bufferOffset, length);
+
+        public override char GetChar(int ordinal)
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.GetChar(ordinal);
+
+        public override long GetChars(int ordinal, long dataOffset, char[] buffer, int bufferOffset, int length)
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.GetChars(ordinal, dataOffset, buffer, bufferOffset, length);
+
+        public override string GetDataTypeName(int ordinal)
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.GetDataTypeName(ordinal);
+
+        public override DateTime GetDateTime(int ordinal)
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.GetDateTime(ordinal);
+
+        public override decimal GetDecimal(int ordinal)
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.GetDecimal(ordinal);
+
+        public override double GetDouble(int ordinal)
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.GetDouble(ordinal);
+
+        public override Type GetFieldType(int ordinal)
+        => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.GetFieldType(ordinal);
+
+        public override float GetFloat(int ordinal)
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.GetFloat(ordinal);
+
+        public override Guid GetGuid(int ordinal)
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.GetGuid(ordinal);
+
+        public override short GetInt16(int ordinal)
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.GetInt16(ordinal);
+
+        public override int GetInt32(int ordinal)
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.GetInt32(ordinal);
+
+        public override long GetInt64(int ordinal)
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.GetInt64(ordinal);
+
+        public override string GetName(int ordinal)
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.GetName(ordinal);
+
+        public override int GetOrdinal(string name)
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.GetOrdinal(name);
+
+        public override string GetString(int ordinal)
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.GetString(ordinal);
+
+        public override object GetValue(int ordinal)
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.GetValue(ordinal);
+
+        public override int GetValues(object[] values)
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.GetValues(values);
+
+        public override bool IsDBNull(int ordinal)
+            => this.closed
+                ? throw new InvalidOperationException(Resources.DataReaderClosed(nameof(GetFieldType)))
+                : this.record == null
+                    ? throw new InvalidOperationException(Resources.NoData)
+                    : this.record.IsDBNull(ordinal);
+
+        public override IEnumerator GetEnumerator()
         {
-            this.command = command;
-            this.database = database;
-            this.commandText = commandText;
-            this.parameters = parameters;
-            this.closeConnection = closeConnection;
+            throw new NotImplementedException();
         }
 
-        public bool NextResult()
+        public override bool NextResult()
         {
             return false;
         }
 
-        public bool Read()
+        public override bool Read()
         {
-            if (IsClosed)
-            {
-                throw new InvalidOperationException("DataReader is closed");
+            if((this.record?.Read() ?? false)){
+                return true;
             }
-
-            if(this.record == null)
+                
+            if(this.record?.HasAdditionalRows ?? true)
             {
-                if(this.statement != null)
+                this.record = this.connection.Connector.ReadResponse<DqliteDataRecord>(ResponseParsers.ParseDataRecordResponse);
+
+                if(this.recordsAffected == -1)
                 {
-                    this.record = this.command.Connection.Client.ExecuteQuery(this.statement, this.parameters);
+                    this.recordsAffected = this.record.RowCount;
                 }
                 else
                 {
-                    this.record = this.command.Connection.Client.ExecuteQuery(this.database, this.commandText, this.parameters);
+                    this.recordsAffected += this.record.RowCount;
                 }
+                
+                return this.record?.Read() ?? false;
             }
 
-            if (this.record.Read())
-            {
-                RecordsAffected += this.record.Values.Count;
-                return true;
-            }
             return false;
         }
 
-        public bool GetBoolean(int i)
+        public override async Task<bool> ReadAsync(CancellationToken cancellationToken)
         {
-            if (IsClosed)
-            {
-                throw new InvalidOperationException("DataReader is closed");
+            if((this.record?.Read() ?? false)){
+                return true;
             }
 
-            return this.record.GetBoolean(i);
-        }
-
-        public byte GetByte(int i)
-        {
-            if (IsClosed)
+            if(this.record?.HasAdditionalRows ?? true)
             {
-                throw new InvalidOperationException("DataReader is closed");
+                this.record = await this.connection.Connector.ReadResponseAsync<DqliteDataRecord>(ResponseParsers.ParseDataRecordResponse, cancellationToken);
+
+                if(this.recordsAffected == -1)
+                {
+                    this.recordsAffected = this.record.RowCount;
+                }
+                else
+                {
+                    this.recordsAffected += this.record.RowCount;
+                }
+                
+                return this.record?.Read() ?? false;
             }
 
-            return (byte)this.record.GetInt64(i);
+            return false;
         }
 
-        public DataTable GetSchemaTable()
-        {
-            throw new NotImplementedException();
-        }
+        public override T GetFieldValue<T>(int ordinal)
+            => this.record.GetFieldValue<T>(ordinal);
 
-        public long GetBytes(int i, long fieldOffset, byte[] buffer, int bufferoffset, int length)
-        {
-            throw new NotImplementedException();
-        }
+        public override void Close()
+            => this.Dispose();
 
-        public char GetChar(int i)
-        {
-            throw new NotImplementedException();
-        }
+        public override Task CloseAsync()
+            => this.DisposeAsync().AsTask();
 
-        public long GetChars(int i, long fieldoffset, char[] buffer, int bufferoffset, int length)
+        protected override void Dispose(bool disposing)
         {
-            throw new NotImplementedException();
-        }
-
-        public IDataReader GetData(int i)
-        {
-            throw new NotImplementedException();
-        }
-
-        public string GetDataTypeName(int i)
-        {
-            throw new NotImplementedException();
-        }
-
-        public DateTime GetDateTime(int i)
-        {
-            if (IsClosed)
-            {
-                throw new InvalidOperationException("DataReader is closed");
+            if(!disposing || this.closed){
+                return;
             }
 
-            return this.record.GetDateTime(i);
-        }
+            this.command.DataReader = null;
+            this.record = null;
+            
+            this.connection.Connector.InterruptStatement(this.connection.CurrentDatabase);
+            this.closed = true;
 
-        public decimal GetDecimal(int i)
-        {
-            var value = this.GetDouble(i);
-            return Convert.ToDecimal(value);
-        }
-
-        public double GetDouble(int i)
-        {
-            if (IsClosed)
+            if(this.closeConnection)
             {
-                throw new InvalidOperationException("DataReader is closed");
+                this.command.Dispose();
             }
-
-            return this.record.GetDouble(i);
         }
 
-        public Type GetFieldType(int i)
+        public override async ValueTask DisposeAsync()
         {
-            throw new NotImplementedException();
-        }
-
-        public float GetFloat(int i)
-        {
-            if (IsClosed)
-            {
-                throw new InvalidOperationException("DataReader is closed");
-            }
-
-            return (float)this.record.GetDouble(i);
-        }
-
-        public Guid GetGuid(int i)
-        {
-            if (IsClosed)
-            {
-                throw new InvalidOperationException("DataReader is closed");
-            }
-
-            var value = this.record.GetBlob(i);
-            return new Guid(value);
-        }
-
-        public short GetInt16(int i)
-        {
-            if (IsClosed)
-            {
-                throw new InvalidOperationException("DataReader is closed");
-            }
-
-            return (short)this.record.GetInt64(i);
-        }
-
-        public int GetInt32(int i)
-        {
-            if (IsClosed)
-            {
-                throw new InvalidOperationException("DataReader is closed");
-            }
-
-            return (int)this.record.GetInt64(i);
-        }
-
-        public long GetInt64(int i)
-        {
-            if (IsClosed)
-            {
-                throw new InvalidOperationException("DataReader is closed");
-            }
-
-            return this.record.GetInt64(i);
-        }
-
-        public string GetName(int i)
-        {
-            if (IsClosed)
-            {
-                throw new InvalidOperationException("DataReader is closed");
-            }
-
-            return this.record.GetName(i);
-        }
-
-        public int GetOrdinal(string name)
-        {
-            if (IsClosed)
-            {
-                throw new InvalidOperationException("DataReader is closed");
-            }
-
-            return this.record.GetOrdinal(name);
-        }
-
-        public string GetString(int i)
-        {
-            if (IsClosed)
-            {
-                throw new InvalidOperationException("DataReader is closed");
-            }
-
-            return this.record.GetString(i);
-        }
-
-        public object GetValue(int i)
-        {
-            if (IsClosed)
-            {
-                throw new InvalidOperationException("DataReader is closed");
-            }
-
-            return this.record.GetValue(i);
-        }
-
-        public int GetValues(object[] values)
-        {
-            if (IsClosed)
-            {
-                throw new InvalidOperationException("DataReader is closed");
-            }
-
-            var i = 0;
-            for(; i < values.Length && i < this.record.FieldCount; ++i)
-            {
-                values[i] = this.record[i];
-            }
-            return i;
-        }
-
-        public bool IsDBNull(int i)
-        {
-            if (IsClosed)
-            {
-                throw new InvalidOperationException("DataReader is closed");
-            }
-
-            return this.record.IsDBNull(i);
-        }
-
-        public void Close()
-        {
-            if (IsClosed)
+            if (this.closed)
             {
                 return;
             }
 
-            command.Connection.Client.InterruptStatement(command.Connection.CurrentDatabase);
-            command.DataReader = null;
-            IsClosed = true;
+            this.command.DataReader = null;
+            this.record = null;
 
-            if (closeConnection)
+            await this.connection.Connector.InterruptStatementAsync(this.connection.CurrentDatabase, CancellationToken.None);
+            this.closed = true;
+
+            if(this.closeConnection)
             {
-                command.Connection.Close();
+                await this.command.DisposeAsync();
             }
-        }
-
-        public void Dispose()
-        {
-            this.Close();
         }
     }
 }

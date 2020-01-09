@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Dqlite.Net", "src\Dqlite.Ne
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Dqlite.Net.Tests", "test\Dqlite.Net.Tests\Dqlite.Net.Tests.csproj", "{C1E9A130-FB63-4788-BF66-1A07D7B5BA7E}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Dqlite.Net.DemoApp", "test\Dqlite.Net.DemoApp\Dqlite.Net.DemoApp.csproj", "{3A9810D5-563F-4E0E-A3F7-4B38A4BD04A2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{C1E9A130-FB63-4788-BF66-1A07D7B5BA7E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C1E9A130-FB63-4788-BF66-1A07D7B5BA7E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C1E9A130-FB63-4788-BF66-1A07D7B5BA7E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3A9810D5-563F-4E0E-A3F7-4B38A4BD04A2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3A9810D5-563F-4E0E-A3F7-4B38A4BD04A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3A9810D5-563F-4E0E-A3F7-4B38A4BD04A2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3A9810D5-563F-4E0E-A3F7-4B38A4BD04A2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

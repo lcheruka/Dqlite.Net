@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Dqlite.Net
 {
-    public class StatementResult
+    internal class StatementResult
     {
         public ulong LastRowId { get; set; }
         public ulong RowCount { get; set; }

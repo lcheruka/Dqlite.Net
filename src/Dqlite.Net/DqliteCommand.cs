@@ -1,193 +1,313 @@
 ﻿using System;
 using System.Data;
+using System.Data.Common;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Dqlite.Net.Properties;
 
 namespace Dqlite.Net
 {
-    public class DqliteCommand : IDbCommand
+    public class DqliteCommand : DbCommand
     {
-        public string CommandText
-        {
-            get => this.commandText;
-            set
-            {
-                if (this.DataReader != null)
-                {
-                    throw new InvalidOperationException("DataReader Already Open");
-                }
+        private readonly Lazy<DqliteParameterCollection> _parameters = new Lazy<DqliteParameterCollection>(
+            () => new DqliteParameterCollection());
+        private DqliteConnection _connection;
+        private PreparedStatement statement;
+        private string _commandText;
+        private bool _prepared;
 
-                if (value != this.commandText)
-                {
-                    DisposePreparedStatement();
-                    commandText = value;
-                }
-            }
+        
+        public DqliteCommand()
+        {
+
         }
 
-        public int CommandTimeout { get; set; }
-        public CommandType CommandType
+        public DqliteCommand(string commandText)
+        {
+            this.CommandText = commandText;
+        }
+
+        public DqliteCommand(string commandText, DqliteConnection connection)
+            : this(commandText)
+        {
+            this.Connection = connection;
+            this.CommandTimeout = connection.DefaultTimeout;
+        }
+
+        public DqliteCommand(string commandText, DqliteConnection connection, DqliteTransaction transaction)
+            : this(commandText, connection)
+        {
+            this.Transaction = transaction;
+        }
+
+        public override CommandType CommandType
         {
             get => CommandType.Text;
             set
             {
                 if (value != CommandType.Text)
                 {
-                    throw new ArgumentException(nameof(CommandText));
+                    throw new ArgumentException(Resources.InvalidCommandType(value));
                 }
             }
         }
 
-        IDbConnection IDbCommand.Connection { get => this.Connection; set => this.Connection = (DqliteConnection)value; }
-        IDataParameterCollection IDbCommand.Parameters { get => this.Parameters; }
-        IDbTransaction IDbCommand.Transaction { get => this.Transaction; set => this.Transaction = (DqliteTransaction)value; }
-        UpdateRowSource IDbCommand.UpdatedRowSource { get; set; }
-
-        internal DqliteConnection Connection { get; set; }
-        internal DqliteTransaction Transaction { get; set; }
-        internal DqliteParameterCollection Parameters { get; private set; }
-        internal DqliteDataReader DataReader { get; set; }
-
-        private string commandText;
-        private PreparedStatementRecord statement;
-
-        public DqliteCommand()
+        public override string CommandText
         {
-            this.Parameters = new DqliteParameterCollection();
-        }
-
-        public void Cancel()
-        {
-            
-        }
-
-        public IDbDataParameter CreateParameter()
-        {
-            return new DqliteParameter();
-        }
-
-        public void Dispose()
-        {
-            this.DisposePreparedStatement();
-            this.Parameters.Clear();
-        }
-
-        public int ExecuteNonQuery()
-        {
-            if (Connection?.State != ConnectionState.Open)
+            get => _commandText;
+            set
             {
-                throw new InvalidOperationException("Connection isn't open");
-            }
-
-            if (CommandText == null)
-            {
-                throw new InvalidOperationException("CommandText is required");
-            }
-
-            if (this.DataReader != null)
-            {
-                throw new InvalidOperationException("DataReader already open");
-            }
-
-            if (this.statement != null)
-            {
-                var result =  Connection.Client.ExecuteStatement(this.statement, this.Parameters.ToArray());
-                return (int)result.RowCount;
-            }
-            else
-            {
-                var result = Connection.Client.ExecuteNonQuery(this.Connection.CurrentDatabase, this.CommandText, this.Parameters.ToArray());
-                return (int)result.RowCount;
-            }
-        }
-
-        public IDataReader ExecuteReader()
-        {
-            return ExecuteReader(CommandBehavior.Default);
-        }
-
-        public IDataReader ExecuteReader(CommandBehavior behavior)
-        {
-            if ((behavior & ~(CommandBehavior.Default | CommandBehavior.SequentialAccess | CommandBehavior.SingleResult
-                              | CommandBehavior.SingleRow | CommandBehavior.CloseConnection)) != 0)
-            {
-                throw new ArgumentException("Invalid Command Behavior");
-            }
-            
-            if (this.DataReader != null)
-            {
-                throw new InvalidOperationException("DataReader already open");
-            }
-            
-            if (this.Connection?.State != ConnectionState.Open)
-            {
-                throw new InvalidOperationException("Connection isn't open");
-            }
-            
-            if (this.CommandText == null)
-            {
-                throw new InvalidOperationException("CommandText is required");
-            }
-            
-            if (this.Transaction != Connection.Transaction)
-            {
-                throw new InvalidOperationException(
-                    Transaction == null
-                        ? "Transaction Required"
-                        : "Mismatch Transaction");
-            }
-            
-            if (this.Connection.Transaction?.ExternalRollback == true)
-            {
-                throw new InvalidOperationException("Transaction Completed");
-            }
-
-            if (this.statement != null)
-            {
-                if(this.statement.ParameterCount != (ulong)this.Parameters.Count)
+                if (DataReader != null)
                 {
-                    throw new InvalidOperationException("Invalid number of parameters");
+                    throw new InvalidOperationException(Resources.SetRequiresNoOpenReader(nameof(CommandText)));
                 }
 
-                return new DqliteDataReader(this, statement, this.Parameters.ToArray(), behavior == CommandBehavior.CloseConnection);
-            }
-            return new DqliteDataReader(this, this.Connection.CurrentDatabase, this.CommandText, this.Parameters.ToArray(), behavior == CommandBehavior.CloseConnection);
-        }
-
-        public object ExecuteScalar()
-        {
-            if (this.Connection?.State != ConnectionState.Open)
-            {
-                throw new InvalidOperationException("Connection isn't open");
-            }
-
-            if (this.CommandText == null)
-            {
-                throw new InvalidOperationException("CommandText is required");
-            }
-
-            using (var reader = ExecuteReader())
-            {
-                return reader.Read()
-                    ? reader.GetValue(0)
-                    : null;
+                if (value != _commandText)
+                {
+                    DisposePreparedStatement();
+                    _commandText = value;
+                }
             }
         }
 
-        public void Prepare()
+        public new virtual DqliteConnection Connection
         {
+            get => _connection;
+            set
+            {
+                if (DataReader != null)
+                {
+                    throw new InvalidOperationException(Resources.SetRequiresNoOpenReader(nameof(Connection)));
+                }
+
+                if (value != _connection)
+                {
+                    DisposePreparedStatement();
+
+                    _connection?.RemoveCommand(this);
+                    _connection = value;
+                    value?.AddCommand(this);
+                }
+            }
+        }
+
+        protected override DbConnection DbConnection
+        {
+            get => Connection;
+            set => Connection = (DqliteConnection)value;
+        }
+
+        public new virtual DqliteTransaction Transaction { get; set; }
+
+        protected override DbTransaction DbTransaction
+        {
+            get => Transaction;
+            set => Transaction = (DqliteTransaction)value;
+        }
+
+        public new virtual DqliteParameterCollection Parameters
+            => _parameters.Value;
+
+        protected override DbParameterCollection DbParameterCollection
+            => Parameters;
+
+        public override int CommandTimeout { get; set; } = 30;
+        public override bool DesignTimeVisible { get; set; }
+        public override UpdateRowSource UpdatedRowSource { get; set; }
+        protected internal virtual DqliteDataReader DataReader { get; set; }
+
+        protected override void Dispose(bool disposing)
+        {
+            DisposePreparedStatement(disposing);
+
+            if (disposing)
+            {
+                _connection?.RemoveCommand(this);
+            }
+
+            base.Dispose(disposing);
+        }
+
+        public new virtual DqliteParameter CreateParameter()
+            => new DqliteParameter();
+        protected override DbParameter CreateDbParameter()
+            => CreateParameter();
+
+        public override void Prepare()
+            => this.PrepareAsync().GetAwaiter().GetResult();
+
+        public override async Task PrepareAsync(CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        {
+            if (_connection?.State != ConnectionState.Open)
+            {
+                throw new InvalidOperationException(Resources.CallRequiresOpenConnection(nameof(Prepare)));
+            }
+
+            if (string.IsNullOrEmpty(_commandText))
+            {
+                throw new InvalidOperationException(Resources.CallRequiresSetCommandText(nameof(Prepare)));
+            }
+
+            if (_prepared)
+            {
+                return;
+            }
+            
             if(this.statement == null)
             {
-                this.statement = this.Connection.Client.PrepareStatement(Connection.CurrentDatabase, CommandText);
+                this.statement = await this.Connection.Connector.PrepareStatementAsync(Connection.CurrentDatabase, CommandText, cancellationToken);
+                _prepared = true;
             }
         }
 
-        private void DisposePreparedStatement()
+        public new virtual DqliteDataReader ExecuteReader()
+            => ExecuteReader(CommandBehavior.Default);
+
+        public new virtual DqliteDataReader ExecuteReader(CommandBehavior behavior)
         {
+            CheckState();
+
+            var closeConnection = behavior.HasFlag(CommandBehavior.CloseConnection);
+
+            var record = (this.statement != null 
+                    ? this.Connection.Connector.ExecuteQuery(this.statement, this.Parameters.ToArray())
+                    : this.Connection.Connector.ExecuteQuery(this.Connection.CurrentDatabase, this.CommandText, this.Parameters.ToArray()));
+
+            return DataReader = new DqliteDataReader(this, record, closeConnection);
+        }
+
+        protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior)
+            => ExecuteReader(behavior);
+
+        public new virtual Task<DqliteDataReader> ExecuteReaderAsync()
+            => ExecuteReaderAsync(CommandBehavior.Default, CancellationToken.None);
+        public new virtual Task<DqliteDataReader> ExecuteReaderAsync(CancellationToken cancellationToken)
+            => ExecuteReaderAsync(CommandBehavior.Default, cancellationToken);
+        public new virtual Task<DqliteDataReader> ExecuteReaderAsync(CommandBehavior behavior)
+            => ExecuteReaderAsync(behavior, CancellationToken.None);
+        public new virtual async Task<DqliteDataReader> ExecuteReaderAsync(
+            CommandBehavior behavior,
+            CancellationToken cancellationToken)
+        {
+            
+            cancellationToken.ThrowIfCancellationRequested();
+
+            CheckState();
+
+            var closeConnection = behavior.HasFlag(CommandBehavior.CloseConnection);
+
+            var record = await (this.statement != null 
+                    ? this.Connection.Connector.ExecuteQueryAsync(this.statement, this.Parameters.ToArray(), cancellationToken)
+                    : this.Connection.Connector.ExecuteQueryAsync(this.Connection.CurrentDatabase, this.CommandText, this.Parameters.ToArray(), cancellationToken));
+
+            return DataReader = new DqliteDataReader(this, record, closeConnection);
+        }
+
+        public override int ExecuteNonQuery()
+        {
+            CheckState();
+
+            var result = this.Connection.Connector.ExecuteNonQuery(this.Connection.CurrentDatabase, this.CommandText, this.Parameters.ToArray());
+            return (int)result.RowCount;
+        }
+
+        public override async Task<int> ExecuteNonQueryAsync(CancellationToken cancellationToken)
+        {
+            CheckState();
+
+            var result = await this.Connection.Connector.ExecuteNonQueryAsync(this.Connection.CurrentDatabase, this.CommandText, this.Parameters.ToArray(), cancellationToken);
+            return (int)result.RowCount;
+        }
+
+        public override object ExecuteScalar()
+        {
+            CheckState();
+            
+            using(var reader = ExecuteReader())
+            {
+                return reader.Read() ? reader.GetValue(0) : null;
+            }
+        }
+
+        public override async Task<object> ExecuteScalarAsync(CancellationToken cancellationToken)
+        {
+            CheckState();
+
+            await using(var reader = await ExecuteReaderAsync())
+            {
+                return await reader.ReadAsync() ? reader.GetValue(0) : null;
+            }
+        }
+
+        private void CheckState()
+        {
+            if (this.DataReader != null)
+            {
+                throw new InvalidOperationException(Resources.DataReaderOpen);
+            }
+
+            if (this.Connection?.State != ConnectionState.Open)
+            {
+                throw new InvalidOperationException(Resources.CallRequiresOpenConnection(nameof(ExecuteReader)));
+            }
+
+            if (string.IsNullOrEmpty(this.CommandText))
+            {
+                throw new InvalidOperationException(Resources.CallRequiresSetCommandText(nameof(ExecuteReader)));
+            }
+
+            if (this.Transaction != this.Connection.Transaction)
+            {
+                throw new InvalidOperationException(
+                    this.Transaction == null
+                        ? Resources.TransactionRequired
+                        : Resources.TransactionConnectionMismatch);
+            }
+        }
+
+        protected override async Task<DbDataReader> ExecuteDbDataReaderAsync(
+            CommandBehavior behavior,
+            CancellationToken cancellationToken)
+            => await ExecuteReaderAsync(behavior, cancellationToken);
+
+        public override void Cancel()
+        {
+            
+        }
+
+        private void DisposePreparedStatement(bool disposing = true)
+        {
+            if (disposing && this.DataReader != null)
+            {
+                this.DataReader.Dispose();
+                this.DataReader = null;
+            }
+
             if (this.statement != null)
             {
-                this.Connection.Client.FinalizeStatement(statement);
+                this.Connection.Connector.FinalizeStatement(statement);
                 this.statement = null;
             }
+
+            _prepared = false;
+        }
+
+        private async Task DisposePreparedStatementAsync(bool disposing = true)
+        {
+            if (disposing && this.DataReader != null)
+            {
+                this.DataReader.Dispose();
+                this.DataReader = null;
+            }
+
+            if (this.statement != null)
+            {
+                await this.Connection.Connector.FinalizeStatementAsync(statement, CancellationToken.None);
+                this.statement = null;
+            }
+
+            _prepared = false;
         }
     }
 }

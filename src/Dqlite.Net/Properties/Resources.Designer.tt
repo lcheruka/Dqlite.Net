@@ -1,0 +1,3 @@
+<#
+    Session["ResourceFile"] = "Resources.resx";
+#>

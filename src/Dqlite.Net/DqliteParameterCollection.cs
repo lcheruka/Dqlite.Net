@@ -7,7 +7,7 @@ using System.Text;
 
 namespace Dqlite.Net
 {
-    class DqliteParameterCollection : DbParameterCollection
+    public class DqliteParameterCollection : DbParameterCollection
     {
         private readonly List<DqliteParameter> parameters;
 

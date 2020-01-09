@@ -82,6 +82,12 @@ namespace Dqlite.Net
             return data.ToArray();
         }
 
+        public static Span<byte> Empty(this Span<byte> bytes)
+        {
+            bytes.Clear();
+            return bytes;
+        }
+
         public static Span<byte> Write(this Span<byte> bytes, byte value)
         {
             bytes[0] = value;
@@ -174,9 +180,11 @@ namespace Dqlite.Net
                     case DqliteTypes.Null:
                         span = span.Write(0UL);
                         break;
+                    /*
                     case DqliteTypes.UnixTime:
                         span = span.Write((ulong)parameter.Value);
                         break;
+                    */
                     case DqliteTypes.ISO8601:
                     case DqliteTypes.Text:
                         span = span.Write(parameter.Value.ToString());

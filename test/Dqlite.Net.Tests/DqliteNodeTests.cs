@@ -54,7 +54,8 @@ namespace Dqlite.Net
                 Path.Combine(Path.GetTempPath(), "dqlite_tests_" + Guid.NewGuid()));
             try
             {
-                var addresses = new string[] { "127.0.0.1:5001", "127.0.0.1:5002", "127.0.0.1:5003" };
+                DqliteConnectionStringBuilder builder = new DqliteConnectionStringBuilder();
+                builder.Nodes = new string[] { "127.0.0.1:5001", "127.0.0.1:5002", "127.0.0.1:5003" };
                 using (var node01 = new NodeProcess(1, "127.0.0.1:5001", Path.Combine(dataDir.FullName, "1")))
                 using (var node02 = new NodeProcess(2, "127.0.0.1:5002", Path.Combine(dataDir.FullName, "2")))
                 using (var node03 = new NodeProcess(3, "127.0.0.1:5003", Path.Combine(dataDir.FullName, "3")))
@@ -66,34 +67,35 @@ namespace Dqlite.Net
 
                     await Task.Delay(10000);
 
-                    using (var client = new DqliteClient())
+                    using (var client = new DqliteClient(builder))
                     {
-                        client.Open("127.0.0.1:5001");
+                        await client.ConnectAsync();
 
-                        client.AddNode(2, "127.0.0.1:5002");
-                        Assert.Equal(1ul, client.GetLeader().Id);
+                        await client.AddNodeAsync(2, "127.0.0.1:5002");
+                        Assert.Equal(1ul, (await client.GetLeaderAsync()).Id);
 
-                        client.PromoteNode(2);
-                        client.AddNode(3, "127.0.0.1:5003");
-                        client.PromoteNode(3);
+                        await client.PromoteNodeAsync(2);
+                        await client.AddNodeAsync(3, "127.0.0.1:5003");
+                        await client.PromoteNodeAsync(3);
 
-                        var nodes = client.EnumerateNodes();
+                        var nodes = await client.EnumerateNodesAsync();
                         Assert.Equal(3, nodes.Count());
                     }
 
-                    using (var client = new DqliteClient())
+                    using (var client = new DqliteClient(builder))
                     {
-                        client.Open("127.0.0.1:5002");
-                        var leader = client.GetLeader();
-                        var nodes = client.EnumerateNodes();
+                        await client.ConnectAsync();
+
+                        var leader = await client.GetLeaderAsync();
+                        var nodes = await client.EnumerateNodesAsync();
                         Assert.Equal(3, nodes.Count());
                     }
 
-                    using (var client = new DqliteClient())
+                    using (var client = new DqliteClient(builder))
                     {
-                        client.Open("127.0.0.1:5003");
+                        await client.ConnectAsync();
 
-                        var nodes = client.EnumerateNodes();
+                        var nodes = await client.EnumerateNodesAsync();
                         Assert.Equal(3, nodes.Count());
                     }
 
@@ -102,9 +104,9 @@ namespace Dqlite.Net
                     using (var cts = new CancellationTokenSource())
                     {
                         cts.CancelAfter(30 * 1000);
-                        using (var client = await DqliteClient.CreateAsync(addresses, true, cts.Token))
+                        using (var client = new DqliteClient(builder))
                         {
-                            var nodes = client.EnumerateNodes();
+                            var nodes = await client.EnumerateNodesAsync();
                             Assert.Equal(3, nodes.Count());
                         }
                     }
@@ -112,9 +114,9 @@ namespace Dqlite.Net
                     using (var cts = new CancellationTokenSource())
                     {
                         cts.CancelAfter(30 * 1000);
-                        using (var client = await DqliteClient.CreateAsync(addresses, false, cts.Token))
+                        using (var client = new DqliteClient(builder))
                         {
-                            var nodes = client.EnumerateNodes();
+                            var nodes = await client.EnumerateNodesAsync();
                             Assert.Equal(3, nodes.Count());
                         }
                     }
@@ -123,15 +125,16 @@ namespace Dqlite.Net
                     {
                         cts.CancelAfter(30 * 1000);
                         using (var newNode01 = new NodeProcess(1, "127.0.0.1:5004", Path.Combine(dataDir.FullName, "4")))
-                        using (var client = await DqliteClient.CreateAsync(addresses, false, cts.Token))
+                        using (var client = new DqliteClient(builder))
                         {
+                            
                             Console.WriteLine("Started Removing node");
-                            client.RemoveNode(1);
+                            await client.RemoveNodeAsync(1);
                             Console.WriteLine("Finished Removing node");
-                            client.AddNode(1, "127.0.0.1:5004");
-                            client.PromoteNode(1);
+                            await client.AddNodeAsync(1, "127.0.0.1:5004");
+                            await client.PromoteNodeAsync(1);
 
-                            var nodes = client.EnumerateNodes();
+                            var nodes = await client.EnumerateNodesAsync();
                             Assert.Equal(3, nodes.Count());
                         }
                     }

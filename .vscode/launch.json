@@ -10,9 +10,9 @@
             "request": "launch",
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
-            "program": "${workspaceFolder}/src/Dqlite.Net/bin/Debug/netcoreapp2.2/Dqlite.Net.dll",
-            "args": [],
-            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/test/Dqlite.Net.DemoApp/bin/Debug/netcoreapp3.1/Dqlite.Net.DemoApp.dll",
+            "args": ["1", "127.0.0.1:9181", "/data/1"],
+            "cwd": "${workspaceFolder}/test/Dqlite.Net.DemoApp",
             // For more information about the 'console' field, see https://aka.ms/VSCode-CS-LaunchJson-Console
             "console": "internalConsole",
             "stopAtEntry": false

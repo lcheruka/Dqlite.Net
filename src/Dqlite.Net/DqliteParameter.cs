@@ -88,7 +88,7 @@ namespace Dqlite.Net
                 case DqliteTypes.Float:
                 case DqliteTypes.Boolean:
                 case DqliteTypes.Null:
-                case DqliteTypes.UnixTime:
+                //case DqliteTypes.UnixTime:
                     return 8;
                 case DqliteTypes.ISO8601:
                 case DqliteTypes.Text:

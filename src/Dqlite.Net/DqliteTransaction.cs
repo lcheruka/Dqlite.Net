@@ -1,19 +1,29 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Data;
-using System.Text;
+using System.Data.Common;
+using System.Threading;
+using System.Threading.Tasks;
+using Dqlite.Net.Properties;
 
 namespace Dqlite.Net
 {
-    public class DqliteTransaction : IDbTransaction
+    public class DqliteTransaction : DbTransaction
     {
-        public IDbConnection Connection => this.connection;
-        public IsolationLevel IsolationLevel { get; }
+        public new virtual DqliteConnection Connection
+            => _connection;
+         protected override DbConnection DbConnection
+            => Connection;
+            
+        public override IsolationLevel IsolationLevel
+            => _completed || _connection.State != ConnectionState.Open
+                ? throw new InvalidOperationException(Resources.TransactionCompleted)
+                : _isolationLevel != IsolationLevel.Unspecified
+                    ? _isolationLevel
+                    : IsolationLevel.Serializable;
 
-        internal bool ExternalRollback { get; private set; }
-
-        private DqliteConnection connection;
-        private bool completed;
+        private DqliteConnection _connection;
+        private readonly IsolationLevel _isolationLevel;
+        private bool _completed;
 
         public DqliteTransaction(DqliteConnection connection, IsolationLevel isolationLevel)
         {
@@ -24,74 +34,98 @@ namespace Dqlite.Net
                 isolationLevel = IsolationLevel.Serializable;
             }
 
-            this.connection = connection;
-            this.IsolationLevel = isolationLevel;
+            _connection = connection;
+            _isolationLevel = isolationLevel;
 
             if (isolationLevel == IsolationLevel.ReadUncommitted)
             {
-                this.connection.ExecuteNonQuery("PRAGMA read_uncommitted = 1;");
+                _connection.Connector.ExecuteNonQuery(_connection.CurrentDatabase, "PRAGMA read_uncommitted = 1;", new DqliteParameter[]{});
             }
             else if (isolationLevel == IsolationLevel.Serializable)
             {
-                this.connection.ExecuteNonQuery("PRAGMA read_uncommitted = 0;");
+                _connection.Connector.ExecuteNonQuery(_connection.CurrentDatabase, "PRAGMA read_uncommitted = 0;", new DqliteParameter[]{});
             }
             else if (isolationLevel != IsolationLevel.Unspecified)
             {
-                throw new ArgumentException();
+                throw new ArgumentException(Resources.InvalidIsolationLevel(isolationLevel));
             }
 
-            this.connection.ExecuteNonQuery(
+            _connection.Connector.ExecuteNonQuery(_connection.CurrentDatabase, 
                 IsolationLevel == IsolationLevel.Serializable
                     ? "BEGIN IMMEDIATE;"
-                    : "BEGIN;");
+                    : "BEGIN;", 
+                new DqliteParameter[]{});
         }
 
-        public void Commit()
+        public override void Commit()
         {
-            if (ExternalRollback
-                || this.completed
-                || this.connection.State != ConnectionState.Open)
+            if ( _completed
+                || _connection.State != ConnectionState.Open)
             {
-                throw new InvalidOperationException();
+                throw new InvalidOperationException(Resources.TransactionCompleted);
             }
 
-            this.connection.ExecuteNonQuery("COMMIT;");
+            _connection.Connector.ExecuteNonQuery(_connection.CurrentDatabase, "COMMIT;", new DqliteParameter[]{});
             Complete();
         }
 
-        public void Rollback()
+        public override async Task CommitAsync(CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
-            if (this.completed || this.connection.State != ConnectionState.Open)
+            if (_completed || _connection.State != ConnectionState.Open)
             {
-                throw new InvalidOperationException();
+                throw new InvalidOperationException(Resources.TransactionCompleted);
             }
 
-            RollbackInternal();
-        }
-
-        public void Dispose()
-        {
-            if (!this.completed && this.connection.State == ConnectionState.Open)
-            {
-                RollbackInternal();
-            }
-        }
-
-        private void RollbackInternal()
-        {
-            if (!ExternalRollback)
-            {
-                this.connection.ExecuteNonQuery("ROLLBACK;");
-            }
-
+            await _connection.Connector.ExecuteNonQueryAsync(_connection.CurrentDatabase, "COMMIT;", new DqliteParameter[]{}, cancellationToken);
             Complete();
+        }
+
+        public override void Rollback()
+        {
+            if (_completed || _connection.State != ConnectionState.Open)
+            {
+                throw new InvalidOperationException(Resources.TransactionCompleted);
+            }
+
+            _connection.Connector.ExecuteNonQuery(_connection.CurrentDatabase, "ROLLBACK;", new DqliteParameter[]{});
+            Complete();
+        }
+
+        public override async Task RollbackAsync(CancellationToken cancellationToken = default(CancellationToken))
+        {
+            if (_completed || _connection.State != ConnectionState.Open)
+            {
+                throw new InvalidOperationException(Resources.TransactionCompleted);
+            }
+
+            await _connection.Connector.ExecuteNonQueryAsync(_connection.CurrentDatabase, "ROLLBACK;", new DqliteParameter[]{}, cancellationToken);
+            Complete();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing
+                && !_completed
+                && _connection.State == ConnectionState.Open)
+            {
+                Rollback();
+            }
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            if (!_completed
+                && _connection.State == ConnectionState.Open)
+            {
+                await RollbackAsync();
+            }
         }
 
         private void Complete()
         {
-            this.connection.Transaction = null;
-            this.connection = null;
-            this.completed = true;
+            _connection.Transaction = null;
+            _connection = null;
+            _completed = true;
         }
     }
 }

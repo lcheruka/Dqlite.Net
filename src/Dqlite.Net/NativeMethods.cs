@@ -5,16 +5,17 @@ using System.Text;
 
 namespace Dqlite.Net
 {
+    public delegate int DqliteNodeConnect(IntPtr handler, string address, ref int fd);
     internal static class NativeMethods
     {
-        public static void CheckError(int code)
+        public static void CheckError(int code, IntPtr node)
         {
             if (code != 0)
             {
-                throw new DqliteException((ulong)code, "Unknow error occured");
+                var errorMessgae = dqlite_node_errmsg(node);
+                throw new DqliteException((ulong)code, errorMessgae ?? "Unknow error occured");
             }
         }
-        public delegate int dqlite_node_connect_func(IntPtr handler, string address, int fd);
 
         [DllImport("sqlite3", CallingConvention = CallingConvention.StdCall)]
         public static extern int sqlite3_config(int value);
@@ -35,12 +36,15 @@ namespace Dqlite.Net
         public static extern int dqlite_node_set_network_latency(IntPtr node, ulong nanoseconds);
 
         [DllImport("dqlite", CallingConvention = CallingConvention.StdCall)]
-        public static extern int dqlite_node_set_connect_func(IntPtr node, dqlite_node_connect_func func, IntPtr arg);
+        public static extern int dqlite_node_set_connect_func(IntPtr node, DqliteNodeConnect func, IntPtr arg);
 
         [DllImport("dqlite", CallingConvention = CallingConvention.StdCall)]
         public static extern int dqlite_node_start(IntPtr node);
 
         [DllImport("dqlite", CallingConvention = CallingConvention.StdCall)]
         public static extern int dqlite_node_stop(IntPtr node);
+
+        [DllImport("dqlite", CallingConvention = CallingConvention.StdCall)]
+        public static extern string dqlite_node_errmsg(IntPtr node);
     }
 }

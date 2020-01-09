@@ -4,10 +4,8 @@ using System.Text;
 
 namespace Dqlite.Net
 {
-    public class PreparedStatementRecord
+    internal class DatabaseRecord
     {
         public uint Id { get; set; }
-        public uint DatabaseId { get; set; }
-        public ulong ParameterCount { get; set; }
     }
 }

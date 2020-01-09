@@ -1,8 +1,8 @@
 using System;
 
-namespace Dqlite.Net.Messages
+namespace Dqlite.Net
 {
-    public enum RequestTypes : byte
+    internal enum RequestTypes : byte
     {
         RequestLeader = 0,
         RequestClient = 1,

@@ -1,5 +1,7 @@
 ﻿using System;
 using System.IO;
+using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Dqlite.Net
@@ -8,6 +10,7 @@ namespace Dqlite.Net
     {
         public static async Task Main(string[] args)
         {
+            
             if(args.Length != 3){
                 Console.Error.WriteLine("Incorrect number of arguments");
                 Environment.Exit(-1);
@@ -33,7 +36,7 @@ namespace Dqlite.Net
             {
                 node.Start();
                 await tcs.Task;
-            }
+            }            
         }
     }
 }

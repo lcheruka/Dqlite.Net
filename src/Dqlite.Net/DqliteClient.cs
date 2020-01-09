@@ -1,318 +1,130 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
-using System.IO;
-using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using Dqlite.Net.Messages;
+using static Dqlite.Net.ResponseParsers;
 using static Dqlite.Net.Utils;
 
 namespace Dqlite.Net
 {
-    public class DqliteClient : IDisposable
+    public sealed partial class DqliteClient : IDisposable, IAsyncDisposable
     {
-        public bool Connected => this.client?.Connected ?? false;
-        private readonly ulong VERSION = 1;
-        private readonly byte REVISION = 0;
+        private readonly DqliteConnector connector;
 
-        private Stream stream;
-        private readonly TcpClient client;
-
-        public DqliteClient()
+        public DqliteClient(string address, bool ConnectLeader = false)
+            : this(new DqliteConnectionStringBuilder(){Nodes = new [] {address}}, ConnectLeader)
         {
-            this.client = new TcpClient();
-            this.client.NoDelay = true;
+
         }
 
-        public void Open(string address)
+        public DqliteClient(DqliteConnectionStringBuilder settings, bool ConnectLeader = false)
         {
-            if(!TryParseAddress(address, out var host, out var port))
-            {
-                throw new FormatException("Invalid address format");
-            }
-            var span = (Span<byte>)stackalloc byte[8];
-            span.Write(VERSION);
-
-            this.client.Connect(host, port);
-            this.client.ReceiveTimeout = 60 * 1000;
-            this.stream = this.client.GetStream();
-            this.stream.Write(span);
-            this.stream.Flush();
-            
-            try
-            {
-                GetLeader();
-            }
-            catch(Exception ex)
-            {
-                throw new DqliteException(1, "Failed to connect to server", ex);
-            }
+            this.connector = new DqliteConnector(settings, ConnectLeader);
         }
 
-        public NodeRecord GetLeader()
-        {
-            var span = (Span<byte>)stackalloc byte[8];
-            this.SendMessage(RequestTypes.RequestLeader,  span);
-            return this.ReadMessage()
-                .AsNodeResponse();
-        }
+        public void Connect()
+            => this.connector.Connect();
 
-        public void RegisterClient(ulong clientId)
-        {
-            var span = (Span<byte>)stackalloc byte[8];
-            span.Write(clientId);
-            this.SendMessage(RequestTypes.RequestClient,  span);
-            this.ReadMessage()
-                .AsWelcomeResponse();
-        }
+        public Task ConnectAsync()
+            => this.connector.ConnectAsync();
 
-        public DatabaseRecord OpenDatabase(string name)
-        {
-            var length = PadWord(name.Length + 1) + 16;
-            var span = (Span<byte>)stackalloc byte[length];
-            span.Write(name);
+        public DqliteNodeInfo GetLeader() 
+            => this.connector.GetLeader();
 
-            this.SendMessage(RequestTypes.RequestOpen,  span);
-            return this.ReadMessage()
-                .AsDatabaseResponse();
-        }
+        public Task<DqliteNodeInfo> GetLeaderAsync(CancellationToken cancellationToken = default(CancellationToken)) 
+            => this.connector.GetLeaderAsync();
 
-        public PreparedStatementRecord PrepareStatement(DatabaseRecord database, string text)
-        {
-            var length = PadWord(text.Length + 1) + 8;
-            var span = (Span<byte>)stackalloc byte[length];
-            span.Write((ulong)database.Id)
-                .Write(text);
-
-            this.SendMessage(RequestTypes.RequestPrepare,  span);
-            return this.ReadMessage().AsPreparedStatementResponse();
-        }
-
-        public StatementResult ExecuteStatement(PreparedStatementRecord preparedStatement, params DqliteParameter[] parameters)
-        {
-            var length = 8 + GetSize(parameters);
-            var span = (Span<byte>)new byte[length];
-
-            span.Write(preparedStatement.DatabaseId)
-                .Write(preparedStatement.Id)
-                .Write(parameters);
-
-            this.SendMessage(RequestTypes.RequestExec,  span);
-            return this.ReadMessage().AsStatementResultResponse();
-        }
-
-        public DqliteDataRecord ExecuteQuery(PreparedStatementRecord preparedStatement, params DqliteParameter[] parameters)
-        {
-            var length = 8 + GetSize(parameters);
-            var span = (Span<byte>)new byte[length];
-
-            span.Write(preparedStatement.DatabaseId)
-                .Write(preparedStatement.Id)
-                .Write(parameters);
-
-            this.SendMessage(RequestTypes.RequestQuery,  span);
-            return new DqliteDataRecord(this);
-        }
-
-        public void FinalizeStatement(PreparedStatementRecord preparedStatement)
-        {
-            var span = (Span<byte>)stackalloc byte[8];
-
-            span.Write(preparedStatement.DatabaseId)
-                .Write(preparedStatement.Id);
-
-            this.SendMessage(RequestTypes.RequestFinalize,  span);
-            ReadMessage().AsAknowledgmentResponse();
-        }
-
-        public StatementResult ExecuteNonQuery(DatabaseRecord database, string text, params DqliteParameter[] parameters)
-        {
-            var length = 8 + PadWord(text.Length+1) + GetSize(parameters);
-            var span = (Span<byte>)new byte[length];
-
-            span.Write((ulong)database.Id)
-                .Write(text)
-                .Write(parameters);
-
-            this.SendMessage(RequestTypes.RequestExecSQL,  span);
-            return this.ReadMessage().AsStatementResultResponse();
-        }
-
-        public DqliteDataRecord ExecuteQuery(DatabaseRecord database, string text, params DqliteParameter[] parameters)
-        {
-            var length = 8 + PadWord(text.Length+1) + GetSize(parameters);
-            var span = (Span<byte>)new byte[length];
-
-            span.Write((ulong)database.Id)
-                .Write(text)
-                .Write(parameters);
-
-            this.SendMessage(RequestTypes.RequestQuerySQL,  span);
-            return new DqliteDataRecord(this);
-        }
-
-        public void InterruptStatement(DatabaseRecord database)
-        {
-            var span = (Span<byte>)new byte[8];
-            span.Write((ulong)database.Id);
-
-            this.SendMessage(RequestTypes.RequestInterrupt,  span);
-            var response = default(Message);
-            while (!(response?.AsAknowledgmentResponse() ?? false))
-            {
-                response = this.ReadMessage();
-            }
-        }
-
-        public void AddNode(ulong nodeId, string address)
+        public  void AddNode(ulong nodeId, string address)
         {
             var length = PadWord( address.Length + 1) + 8;
-            var span = (Span<byte>)stackalloc byte[length];
-            span.Write(nodeId)
-                .Write(address);
+            var data = (Span<byte>) stackalloc byte[length];
+            Requests.Write(data, nodeId, address);
+            this.connector.SendRequest(RequestTypes.RequestJoin, data);
+            this.connector.ReadResponse<bool>(ParseAknowledgmentResponse);
+        }
 
-            this.SendMessage(RequestTypes.RequestJoin,  span);
-            this.ReadMessage()
-                .AsAknowledgmentResponse();
+        public async Task AddNodeAsync(ulong nodeId, string address, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            var length = PadWord( address.Length + 1) + 8;
+            using(var slot = MemoryPool<byte>.Shared.Rent(length))
+            {
+                var data = slot.Memory.Slice(0, length);
+                Requests.Write(data.Span, nodeId, address);
+                await this.connector.SendRequestAsync(RequestTypes.RequestJoin, data, cancellationToken);
+                await this.connector.ReadResponseAsync<bool>(ParseAknowledgmentResponse, cancellationToken);
+            }            
         }
 
         public void PromoteNode(ulong nodeId)
         {
-            var span = (Span<byte>)stackalloc byte[8];
-            span.Write(nodeId);
-
-            this.SendMessage(RequestTypes.RequestPromote,  span);
-            this.ReadMessage()
-                .AsAknowledgmentResponse();
+            const int length = 8;
+            var data = (Span<byte>) stackalloc byte[length];
+            Requests.Write(data, nodeId);
+            this.connector.SendRequest(RequestTypes.RequestPromote, data);
+            this.connector.ReadResponse<bool>(ParseAknowledgmentResponse);
+        }
+        
+        public async Task PromoteNodeAsync(ulong nodeId, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            const int length = 8;
+            using(var slot = MemoryPool<byte>.Shared.Rent(length))
+            {
+                var data = slot.Memory.Slice(0, length);
+                Requests.Write(data.Span, nodeId);
+                await this.connector.SendRequestAsync(RequestTypes.RequestPromote, data, cancellationToken);
+                await this.connector.ReadResponseAsync<bool>(ParseAknowledgmentResponse, cancellationToken);
+            }  
         }
 
         public void RemoveNode(ulong nodeId)
         {
-            var span = (Span<byte>)stackalloc byte[8];
-            span.Write(nodeId);
-
-            this.SendMessage(RequestTypes.RequestRemove,  span);
-            this.ReadMessage()
-                .AsAknowledgmentResponse();
+            const int length = 8;
+            var data = (Span<byte>) stackalloc byte[length];
+            Requests.Write(data, nodeId);
+            this.connector.SendRequest(RequestTypes.RequestRemove, data);
+            this.connector.ReadResponse<bool>(ParseAknowledgmentResponse);
         }
 
-        public DatabaseDump DumpDatabase(string name)
+        public async Task RemoveNodeAsync(ulong nodeId, CancellationToken cancellationToken = default(CancellationToken))
         {
-            var length = PadWord(name.Length + 1);
-            var span = (Span<byte>)stackalloc byte[length];
-            span.Write(name);
-
-            this.SendMessage(RequestTypes.RequestDump, span);
-            return this.ReadMessage()
-                .AsDatabaseDumpResponse();
-        }
-
-        public IEnumerable<NodeRecord> EnumerateNodes()
-        {
-            var span = (Span<byte>) stackalloc byte[8];
-            this.SendMessage(RequestTypes.RequestCluster, span);
-            return this.ReadMessage()
-                .AsNodesResponse();
-        }
-
-        internal void SendMessage(RequestTypes type, ReadOnlySpan<byte> data)
-        {
-            if(data.Length % 8 != 0)
+            const int length = 8;
+            using(var slot = MemoryPool<byte>.Shared.Rent(length))
             {
-                throw new InvalidOperationException();
-            }
-
-            var size = data.Length / 8;
-            var header = (Span<byte>)stackalloc byte[8];
-            header.Write(size)
-                .Write((byte)type)
-                .Write(REVISION);
-                
-            stream.Write(header);
-            stream.Write(data);
+                var data = slot.Memory.Slice(0, length);
+                Requests.Write(data.Span, nodeId);
+                await this.connector.SendRequestAsync(RequestTypes.RequestRemove, data, cancellationToken);
+                await this.connector.ReadResponseAsync<bool>(ParseAknowledgmentResponse, cancellationToken);
+            }  
         }
 
-        internal Message ReadMessage()
+        public IEnumerable<DqliteNodeInfo> EnumerateNodes(CancellationToken cancellationToken = default(CancellationToken))
         {
-            var message = new Message();
-            var header = (Span<byte>) stackalloc byte[8];
-
-            var amount = stream.Read(header);
-            if (amount != header.Length)
-            {
-                throw new EndOfStreamException();
-            }
-
-            message.Size = header.ReadInt32();
-            message.Type = header.ReadByte();
-            message.Revision = header.ReadByte();
-            message.Data = new byte[message.Size * 8];
-
-            if (stream.Read(message.Data, 0, message.Data.Length) != message.Data.Length)
-            {
-                throw new EndOfStreamException();
-            }
-
-            return message;
+            const int length = 8;
+            var data = (Span<byte>) stackalloc byte[length];
+            this.connector.SendRequest(RequestTypes.RequestCluster, data);
+            return this.connector.ReadResponse<IEnumerable<DqliteNodeInfo>>(ParseNodesResponse);
         }
-
-        public void Dispose(){
-            this.stream?.Dispose();
-            this.client?.Dispose();
-        }
-
-        public static async Task<DqliteClient> CreateAsync(string[] nodes, bool connectAny, CancellationToken cancellationToken)
+        
+        public async Task<IEnumerable<DqliteNodeInfo>> EnumerateNodesAsync(CancellationToken cancellationToken = default(CancellationToken))
         {
-            while(true)
+            const int length = 8;
+            using(var slot = MemoryPool<byte>.Shared.Rent(length))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                foreach(var node in nodes)
-                {
-                    try
-                    {
-                        var client = Create(node, connectAny, cancellationToken);
-                        return client;
-                    }
-                    catch
-                    {
-
-                    }
-                }
-                await Task.Delay(500);
+                var data = slot.Memory.Slice(0, length);
+                await this.connector.SendRequestAsync(RequestTypes.RequestCluster, data, cancellationToken);
+                return await this.connector.ReadResponseAsync<IEnumerable<DqliteNodeInfo>>(ParseNodesResponse, cancellationToken);
             }
-            throw new DqliteException(1, "Failed to connect to node");
+        }
+           
+        public void Dispose()
+        {
+            ((IDisposable)connector)?.Dispose();
         }
 
-        public static DqliteClient Create(string address, bool connectAny, CancellationToken cancellationToken)
+        public ValueTask DisposeAsync()
         {
-            var client = default(DqliteClient);
-            while(true)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                try
-                {
-                    client = new DqliteClient();
-                    client.Open(address);
-                    
-                    if(!connectAny)
-                    {
-                        var leader = client.GetLeader();
-                        if(leader.Address != address)
-                        {
-                            address = leader.Address;
-                            continue;
-                        }
-                    }
-
-                    return client;                    
-                }
-                catch
-                {
-                    client?.Dispose();
-                    throw;
-                }
-            }
+            return ((IAsyncDisposable)connector)?.DisposeAsync() ?? new ValueTask(); 
         }
     }
 }

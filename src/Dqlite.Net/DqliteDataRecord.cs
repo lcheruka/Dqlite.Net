@@ -1,251 +1,212 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data;
-using System.Text;
-using Dqlite.Net.Messages;
+using System.Diagnostics;
 
 namespace Dqlite.Net
 {
-    public class DqliteDataRecord
+    internal class DqliteDataRecord : DqliteValueReader
     {
-        public object this[string name] => GetValue(GetOrdinal(name));
-        public object this[int ordinal] => GetValue(ordinal);
-        public int FieldCount => this.Columns.Length;
-
-        internal string[] Columns { get; set; }
-        internal List<DqliteTypes[]> Types { get; set; }
-        internal List<object[]> Values { get; set; }
-        internal bool HasRows { get; set; }
-
+        public int RowCount => this.Values?.Count ?? 0;
+        public string[] Columns { get; }
+        public List<DqliteTypes[]> Types { get; }
+        public List<object[]> Values { get; }
+        public bool HasRows => index + 1 < this.RowCount;
+        public bool HasAdditionalRows {get;}
         private int index;
 
-        private readonly DqliteClient client;
-        internal DqliteDataRecord(DqliteClient client)
+        public DqliteDataRecord(string[] columns, List<DqliteTypes[]> types, List<object[]> values, bool hasRows)
         {
-            this.client = client;
-            this.Columns = new string[0];
-            this.Types = new List<DqliteTypes[]>();
-            this.Values = new List<object[]>();
-            this.index = 0;
-            this.HasRows = true;
+            this.Columns = columns;
+            this.Types = types;
+            this.Values = values;
+            this.HasAdditionalRows = hasRows;
+            this.index = -1;
         }
 
-        public bool Read()
+        public virtual object this[string name]
+            => GetValue(GetOrdinal(name));
+        public virtual object this[int ordinal]
+            => GetValue(ordinal);
+        public override int FieldCount
+            => this.Columns?.Length ?? -1;
+
+        public override bool IsDBNull(int ordinal)
+            => this.index >= this.RowCount
+                ? throw new InvalidOperationException("No data exists for the row/column.")
+                : base.IsDBNull(ordinal);
+                
+        public override object GetValue(int ordinal)
+            => this.index >= this.RowCount
+                ? throw new InvalidOperationException("No data exists for the row/column.")
+                : base.GetValue(ordinal);
+
+        protected override bool GetBooleanCore(int ordinal)
+            => Convert.ToBoolean(this.Values[this.index][ordinal]); 
+
+        protected override double GetDoubleCore(int ordinal)
+            => Convert.ToDouble(this.Values[this.index][ordinal]);
+
+        protected override long GetInt64Core(int ordinal)
+            => Convert.ToInt64(this.Values[this.index][ordinal]);
+
+        protected override string GetStringCore(int ordinal)
+            => Convert.ToString(this.Values[this.index][ordinal]);
+
+        protected override byte[] GetBlobCore(int ordinal)
+            => (byte[])(this.Values[this.index][ordinal]);
+
+        protected override DqliteTypes GetDqliteType(int ordinal)
         {
-            if(index + 1 >= this.Values.Count && this.HasRows)
+            if (ordinal < 0 || ordinal >= FieldCount)
             {
-                AdvanceRow();
+                throw new ArgumentOutOfRangeException(nameof(ordinal), ordinal, message: null);
             }
 
-            this.index += 1;
-            return this.index < this.Values.Count;
+            return this.Types[this.index][ordinal];
         }
 
-        public bool IsDBNull(int ordinal)
+        protected override T GetNull<T>(int ordinal)
+            => typeof(T) == typeof(DBNull) || typeof(T) == typeof(object)
+                ? (T)(object)DBNull.Value
+                : throw new InvalidOperationException(GetOnNullErrorMsg(ordinal));
+                
+        public virtual string GetName(int ordinal)
         {
-            if (ordinal < 0 || ordinal >= this.FieldCount)
+            if (ordinal < 0 || ordinal >= FieldCount)
             {
-                throw new ArgumentOutOfRangeException();
-            }
-            return this.Types[index][ordinal] == DqliteTypes.Null;
-        }
-
-        public object GetValue(int ordinal)
-        {
-            if (ordinal < 0 || ordinal >= this.FieldCount)
-            {
-                throw new ArgumentOutOfRangeException();
-            }
-            return this.Values[index][ordinal];
-        }
-
-        public double GetDouble(int ordinal)
-        {
-            if (ordinal < 0 || ordinal >= this.FieldCount)
-            {
-                throw new ArgumentOutOfRangeException();
-            }
-            return (double)this.Values[index][ordinal];
-        }
-
-        public bool GetBoolean(int ordinal)
-        {
-            if (ordinal < 0 || ordinal >= this.FieldCount)
-            {
-                throw new ArgumentOutOfRangeException();
-            }
-            return (bool)this.Values[index][ordinal];
-        }
-
-        public long GetInt64(int ordinal)
-        {
-            if (ordinal < 0 || ordinal >= this.FieldCount)
-            {
-                throw new ArgumentOutOfRangeException();
-            }
-            return (long)this.Values[index][ordinal];
-        }
-
-        public string GetString(int ordinal)
-        {
-            if (ordinal < 0 || ordinal >= this.FieldCount)
-            {
-                throw new ArgumentOutOfRangeException();
-            }
-            return (string)this.Values[index][ordinal];
-        }
-
-        public byte[] GetBlob(int ordinal)
-        {
-            if (ordinal < 0 || ordinal >= this.FieldCount)
-            {
-                throw new ArgumentOutOfRangeException();
-            }
-            return (byte[])this.Values[index][ordinal];
-        }
-
-        public DateTime GetDateTime(int ordinal)
-        {
-            if (ordinal < 0 || ordinal >= this.FieldCount)
-            {
-                throw new ArgumentOutOfRangeException();
-            }
-            return (DateTime)this.Values[index][ordinal];
-        }
-
-        public string GetName(int ordinal)
-        {
-            if (ordinal < 0 || ordinal >= this.FieldCount)
-            {
-                throw new ArgumentOutOfRangeException();
+                throw new ArgumentOutOfRangeException(nameof(ordinal), ordinal, message: null);
             }
 
             return this.Columns[ordinal];
         }
 
-        public int GetOrdinal(string name)
+        public virtual int GetOrdinal(string name)
         {
-            for (var i = 0; i < this.FieldCount; i++)
+            for (var i = 0; i < FieldCount; i++)
             {
                 if (GetName(i) == name)
                 {
                     return i;
                 }
             }
+
             throw new ArgumentOutOfRangeException(nameof(name), name, message: null);
         }
 
-        private void AdvanceRow()
+        public virtual string GetDataTypeName(int ordinal)
         {
-            var message = this.client.ReadMessage();
-            message.ThrowOnFailure();
-            var response = (ResponseTypes)message.Type;
-            if (response != ResponseTypes.ResponseRows)
+            var dqliteType = GetDqliteType(ordinal);
+            switch (dqliteType)
             {
-                throw new InvalidOperationException($"Invalid response: expected {ResponseTypes.ResponseRows}, actually {response}");
+                case DqliteTypes.Integer:
+                    return "INTEGER";
+
+                case DqliteTypes.Float:
+                    return "REAL";
+
+                case DqliteTypes.Text:
+                    return "TEXT";
+
+                case DqliteTypes.Boolean:
+                    return "BOOLEAN";
+
+                case DqliteTypes.ISO8601:
+                    return "ISO8601";
+
+                default:
+                    Debug.Assert(
+                        dqliteType == DqliteTypes.Blob || dqliteType == DqliteTypes.Null,
+                        "Unexpected column type: " + dqliteType);
+                    return "BLOB";
             }
+        }
 
-            var span = message.Data.AsSpan();
+        public virtual Type GetFieldType(int ordinal)
+        {
+            var dqliteType = GetDqliteType(ordinal);
+            return GetFieldTypeFromSqliteType(dqliteType);
+        }
 
-            this.Columns = new string[span.ReadUInt64()];
-            this.Types.Clear();
-            this.Values.Clear();
-            this.index = -1;
-            for (var i = 0; i < this.Columns.Length; ++i)
+        internal static Type GetFieldTypeFromSqliteType(DqliteTypes dqliteType)
+        {
+            switch (dqliteType)
             {
-                this.Columns[i] = span.ReadString();
+                case DqliteTypes.Integer:
+                    return typeof(long);
+
+                case DqliteTypes.Float:
+                    return typeof(double);
+
+                case DqliteTypes.Text:
+                    return typeof(string);
+
+                case DqliteTypes.Boolean:
+                    return typeof(bool);
+
+                case DqliteTypes.ISO8601:
+                //case DqliteTypes.UnixTime:
+                    return typeof(DateTime);
+
+                default:
+                    Debug.Assert(
+                        dqliteType == DqliteTypes.Blob || dqliteType == DqliteTypes.Null,
+                        "Unexpected column type: " + dqliteType);
+                    return typeof(byte[]);
             }
+        }
 
-            while (span.Length > 0)
+        public static Type GetFieldType(string type)
+        {
+            switch (type)
             {
-                var rowTypes = new DqliteTypes[this.Columns.Length];
-                var rowValues= new object[this.Columns.Length];
+                case "integer":
+                    return typeof(long);
 
-                var headerBits = rowTypes.Length * 4;
-                var padBits = 0;
-                if (headerBits % 64 != 0)
-                {
-                    padBits = 64 - (headerBits % 64);
-                }
+                case "real":
+                    return typeof(double);
 
-                var headerSize = (headerBits + padBits) / 64 * 8;
-                for (var i = 0; i < headerSize; ++i)
-                {
-                    var slot = span.ReadByte();
-                    if (slot == 0xee)
-                    {
-                        // More rows are available.
-                        this.HasRows = true;
-                        return;
-                    }
-                    else if (slot == 0xff)
-                    {
-                        this.HasRows = false;
-                        return;
-                    }
-
-                    var index = i * 2;
-                    if (index >= rowTypes.Length)
-                    {
-                        // This is padding.
-                        continue;
-                    }
-                    rowTypes[index] = (DqliteTypes)(slot & 0x0f);
-
-                    if (++index >= rowTypes.Length)
-                    {
-                        // This is padding.
-                        continue;
-                    }
-                    rowTypes[index] = (DqliteTypes)(slot >> 4);
-                }
+                case "text":
+                    return typeof(string);
                 
-                for (var i = 0; i < rowTypes.Length; ++i)
-                {
-                    switch (rowTypes[i])
-                    {
-                        case DqliteTypes.Integer:
-                            rowValues[i] = span.ReadInt64();
-                            break;
-                        case DqliteTypes.Float:
-                            rowValues[i] = span.ReadDouble();
-                            break;
-                        case DqliteTypes.Blob:
-                            rowValues[i] = span.ReadBlob();
-                            break;
-                        case DqliteTypes.Text:
-                            rowValues[i] = span.ReadString();
-                            break;
-                        case DqliteTypes.Null:
-                            span.ReadUInt64();
-                            rowValues[i] = null;
-                            break;
-                        case DqliteTypes.UnixTime:
-                            //TODO
-                            rowValues[i] = span.ReadInt64();
-                            break;
-                        case DqliteTypes.ISO8601:
-                            {
-                                var value = span.ReadString();
-                                if (string.IsNullOrEmpty(value))
-                                {
-                                    rowValues[i] = DateTime.MinValue;
-                                }
+                case "boolean":
+                    return typeof(bool);
 
-                                rowValues[i] = DateTime.Parse(value);
-                                break;
-                            }
-                        case DqliteTypes.Boolean:
-                            rowValues[i] = span.ReadUInt64() != 0;
-                            break;
-                        default:
-                            throw new DqliteException(0, "Unknown type");
-                    }
-                }
+                case "iso8601":
+                    return typeof(DateTime);
 
-                this.Types.Add(rowTypes);
-                this.Values.Add(rowValues);
+                default:
+                    Debug.Assert(type == "blob" || type == null, "Unexpected column type: " + type);
+                    return typeof(byte[]);
             }
+        }
+
+        public virtual long GetBytes(int ordinal, long dataOffset, byte[] buffer, int bufferOffset, int length)
+        {
+            var blob = GetBlob(ordinal);
+
+            long bytesToRead = blob.Length - dataOffset;
+            if (buffer != null)
+            {
+                bytesToRead = Math.Min(bytesToRead, length);
+                Array.Copy(blob, dataOffset, buffer, bufferOffset, bytesToRead);
+            }
+
+            return bytesToRead;
+        }
+
+        public virtual long GetChars(int ordinal, long dataOffset, char[] buffer, int bufferOffset, int length)
+        {
+            var text = GetString(ordinal);
+
+            int charsToRead = text.Length - (int)dataOffset;
+            charsToRead = Math.Min(charsToRead, length);
+            text.CopyTo((int)dataOffset, buffer, bufferOffset, charsToRead);
+            return charsToRead;
+        }
+
+        public bool Read()
+        {
+            return ++this.index < this.Values?.Count;
         }
     }
 }

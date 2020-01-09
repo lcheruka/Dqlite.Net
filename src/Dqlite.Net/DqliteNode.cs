@@ -1,20 +1,19 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using static Dqlite.Net.NativeMethods;
 
 namespace Dqlite.Net
 {
     public class DqliteNode : IDisposable
     {
-
+ 
         static DqliteNode()
         {
-            var rc = sqlite3_config(1);
+
         }
 
         public ulong Id { get; }
         public string Address { get; }
+        public string BindAddress => dqlite_node_get_bind_address(this.node);
         
         private bool active;
         private readonly IntPtr node;
@@ -28,13 +27,13 @@ namespace Dqlite.Net
 
         public void Start()
         {
-            CheckError(dqlite_node_start(this.node));
+            CheckError(dqlite_node_start(this.node), this.node);
             this.active = true;
         }
 
         public void Stop()
         {
-            CheckError(dqlite_node_stop(this.node));
+            CheckError(dqlite_node_stop(this.node), this.node);
             this.active = false;
         }
 
@@ -48,13 +47,22 @@ namespace Dqlite.Net
             dqlite_node_destroy(this.node);
         }
 
-        public static DqliteNode Create(ulong id, string address, string dataDir)
+        public static DqliteNode Create(ulong id, string address, string dataDir, DqliteNodeOptions options = null)
         {
-            CheckError(dqlite_node_create(id, address, dataDir, out var node));
-            CheckError(dqlite_node_set_bind_address(node, address));
-            CheckError(dqlite_node_set_network_latency(node, 20 * 1000 * 1000000UL));
+            CheckError(dqlite_node_create(id, address, dataDir, out var node), node);
+            CheckError(dqlite_node_set_bind_address(node, options?.Address ?? address), node);
+            
+            if(options?.DialFunction != null)
+            {
+                CheckError(dqlite_node_set_connect_func(node, options.DialFunction, IntPtr.Zero), node);
+            }
+            
+            if(options?.NetworkLatency != null)
+            {
+                CheckError(dqlite_node_set_network_latency(node, (ulong)options.NetworkLatency.TotalMilliseconds *  1000000UL), node);
+            }
             
             return new DqliteNode(node, id, address);
-        }
+        } 
     }
 }

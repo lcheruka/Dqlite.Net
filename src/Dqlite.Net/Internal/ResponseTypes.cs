@@ -1,8 +1,8 @@
 using System;
 
-namespace Dqlite.Net.Messages
+namespace Dqlite.Net
 {
-    public enum ResponseTypes : byte
+    internal enum ResponseTypes : byte
     {
         ResponseFailure = 0,
         ResponseNode = 1,

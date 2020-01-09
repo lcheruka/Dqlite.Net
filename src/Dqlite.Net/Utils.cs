@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Net;
+using System.Net.Sockets;
 using System.Text;
 
 namespace Dqlite.Net
@@ -27,6 +29,24 @@ namespace Dqlite.Net
                 value += (8 - (value % 8));
             }
             return value;
+        }
+
+        public static bool TryParseEndPoint(ReadOnlySpan<char> value, out EndPoint endpoint)
+        {
+            if(!value.IsEmpty && value[0] == '/')
+            {
+                endpoint = new UnixDomainSocketEndPoint(value.ToString());
+                return true;
+            }
+
+            var index = value.IndexOf(':');
+            if(index == -1 || !int.TryParse(value.Slice(index+1), out var port)){
+                endpoint = null;
+                return false;
+            }
+
+            endpoint = new DnsEndPoint(value.Slice(0, index).ToString(), port, AddressFamily.InterNetwork);
+            return true;            
         }
 
         public static bool TryParseAddress(ReadOnlySpan<char> value, out string address, out int port )

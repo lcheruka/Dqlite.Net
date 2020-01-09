@@ -2,7 +2,7 @@ using System;
 
 namespace Dqlite.Net
 {
-    public class NodeRecord
+    public class DqliteNodeInfo
     {
         public ulong Id { get; set; }
         public string Address { get; set;}
