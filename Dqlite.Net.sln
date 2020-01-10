@@ -9,6 +9,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Dqlite.Net.Tests", "test\Dq
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Dqlite.Net.DemoApp", "test\Dqlite.Net.DemoApp\Dqlite.Net.DemoApp.csproj", "{3A9810D5-563F-4E0E-A3F7-4B38A4BD04A2}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Dqlite.Net.Extensions.DependencyInjection", "src\Dqlite.Net.Extensions.DependencyInjection\Dqlite.Net.Extensions.DependencyInjection.csproj", "{32B5A805-75AF-4A55-9508-9B1B498832BD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{3A9810D5-563F-4E0E-A3F7-4B38A4BD04A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3A9810D5-563F-4E0E-A3F7-4B38A4BD04A2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3A9810D5-563F-4E0E-A3F7-4B38A4BD04A2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{32B5A805-75AF-4A55-9508-9B1B498832BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{32B5A805-75AF-4A55-9508-9B1B498832BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{32B5A805-75AF-4A55-9508-9B1B498832BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{32B5A805-75AF-4A55-9508-9B1B498832BD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

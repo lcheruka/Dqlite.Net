@@ -78,7 +78,7 @@ namespace Dqlite.Net
                         await client.AddNodeAsync(3, "127.0.0.1:5003");
                         await client.PromoteNodeAsync(3);
 
-                        var nodes = await client.EnumerateNodesAsync();
+                        var nodes = await client.GetNodesAsync();
                         Assert.Equal(3, nodes.Count());
                     }
 
@@ -87,7 +87,7 @@ namespace Dqlite.Net
                         await client.ConnectAsync();
 
                         var leader = await client.GetLeaderAsync();
-                        var nodes = await client.EnumerateNodesAsync();
+                        var nodes = await client.GetNodesAsync();
                         Assert.Equal(3, nodes.Count());
                     }
 
@@ -95,7 +95,7 @@ namespace Dqlite.Net
                     {
                         await client.ConnectAsync();
 
-                        var nodes = await client.EnumerateNodesAsync();
+                        var nodes = await client.GetNodesAsync();
                         Assert.Equal(3, nodes.Count());
                     }
 
@@ -106,7 +106,7 @@ namespace Dqlite.Net
                         cts.CancelAfter(30 * 1000);
                         using (var client = new DqliteClient(builder))
                         {
-                            var nodes = await client.EnumerateNodesAsync();
+                            var nodes = await client.GetNodesAsync();
                             Assert.Equal(3, nodes.Count());
                         }
                     }
@@ -116,7 +116,7 @@ namespace Dqlite.Net
                         cts.CancelAfter(30 * 1000);
                         using (var client = new DqliteClient(builder))
                         {
-                            var nodes = await client.EnumerateNodesAsync();
+                            var nodes = await client.GetNodesAsync();
                             Assert.Equal(3, nodes.Count());
                         }
                     }
@@ -134,7 +134,7 @@ namespace Dqlite.Net
                             await client.AddNodeAsync(1, "127.0.0.1:5004");
                             await client.PromoteNodeAsync(1);
 
-                            var nodes = await client.EnumerateNodesAsync();
+                            var nodes = await client.GetNodesAsync();
                             Assert.Equal(3, nodes.Count());
                         }
                     }

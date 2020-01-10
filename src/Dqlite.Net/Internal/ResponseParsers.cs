@@ -52,7 +52,7 @@ namespace Dqlite.Net
             return true;
         }
 
-        public static IEnumerable<DqliteNodeInfo> ParseNodesResponse(ResponseTypes type, int size, Memory<byte> data)
+        public static DqliteNodeInfo[] ParseNodesResponse(ResponseTypes type, int size, Memory<byte> data)
         {
             ThrowOnFailure(type, size, data);
             if (type != ResponseTypes.ResponseNodes)

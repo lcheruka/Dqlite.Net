@@ -26,8 +26,8 @@ namespace Dqlite.Net
         public void Connect()
             => this.connector.Connect();
 
-        public Task ConnectAsync()
-            => this.connector.ConnectAsync();
+        public Task ConnectAsync(CancellationToken cancellationToken = default(CancellationToken))
+            => this.connector.ConnectAsync(cancellationToken);
 
         public DqliteNodeInfo GetLeader() 
             => this.connector.GetLeader();
@@ -98,22 +98,22 @@ namespace Dqlite.Net
             }  
         }
 
-        public IEnumerable<DqliteNodeInfo> EnumerateNodes(CancellationToken cancellationToken = default(CancellationToken))
+        public DqliteNodeInfo[] GetNodes(CancellationToken cancellationToken = default(CancellationToken))
         {
             const int length = 8;
             var data = (Span<byte>) stackalloc byte[length];
             this.connector.SendRequest(RequestTypes.RequestCluster, data);
-            return this.connector.ReadResponse<IEnumerable<DqliteNodeInfo>>(ParseNodesResponse);
+            return this.connector.ReadResponse<DqliteNodeInfo[]>(ParseNodesResponse);
         }
         
-        public async Task<IEnumerable<DqliteNodeInfo>> EnumerateNodesAsync(CancellationToken cancellationToken = default(CancellationToken))
+        public async Task<DqliteNodeInfo[]> GetNodesAsync(CancellationToken cancellationToken = default(CancellationToken))
         {
             const int length = 8;
             using(var slot = MemoryPool<byte>.Shared.Rent(length))
             {
                 var data = slot.Memory.Slice(0, length);
                 await this.connector.SendRequestAsync(RequestTypes.RequestCluster, data, cancellationToken);
-                return await this.connector.ReadResponseAsync<IEnumerable<DqliteNodeInfo>>(ParseNodesResponse, cancellationToken);
+                return await this.connector.ReadResponseAsync<DqliteNodeInfo[]>(ParseNodesResponse, cancellationToken);
             }
         }
            
