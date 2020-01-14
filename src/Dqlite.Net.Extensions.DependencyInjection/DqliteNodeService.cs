@@ -81,15 +81,7 @@ namespace Dqlite.Net
             await base.StopAsync(cancellationToken);
             await this.ExecuteAsync(x => x.StopAsync(cancellationToken), false);
         }
-
-        private async Task RoleChangeAsync(bool isLeader, CancellationToken cancellationToken)
-        {
-            foreach(var service in this.services)
-            {
-                await service.OnRoleChangeAsync(isLeader,cancellationToken);
-            }
-        }
-
+        
         private async Task ExecuteAsync(Func<IDqliteService, Task> callback, bool throwOnFirstFailure = true)
         {
             List<Exception> exceptions = null;
