@@ -2,11 +2,26 @@ using System;
 using System.IO;
 using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Dqlite.Net
 {
     public static class ServiceCollectionExtensions
     {
+        public static IServiceCollection AddDqliteService<TDqliteService>(this IServiceCollection services, Func<IServiceProvider, TDqliteService> implementationFactory) 
+            where TDqliteService : class, IDqliteService
+        {
+            services.TryAddEnumerable(ServiceDescriptor.Singleton<IDqliteService>(implementationFactory));
+            return services;
+        }
+
+        public static IServiceCollection AddDqliteService<TDqliteService>(this IServiceCollection services) 
+            where TDqliteService : class, IDqliteService
+        {
+            services.TryAddEnumerable(ServiceDescriptor.Singleton<IDqliteService, TDqliteService>());
+            return services;
+        }
+
         public static IServiceCollection AddDqlite(this IServiceCollection services, Action<DQliteOptions> configureOptions)
         {
             var options = new DQliteOptions()
@@ -38,7 +53,7 @@ namespace Dqlite.Net
 
             services.AddTransient<DqliteConnectionStringBuilder>(x => new DqliteConnectionStringBuilder(options.ConnectionOptions.ToString()));
             services.AddTransient<DqliteConnection>(x => new DqliteConnection(options.ConnectionOptions.ToString()));
-            services.AddHostedService<DqliteNodeService>(x => new DqliteNodeService(options));
+            services.AddHostedService<DqliteNodeService>(x => new DqliteNodeService(x.GetServices<IDqliteService>(), options));
             return services;
         }
     }
