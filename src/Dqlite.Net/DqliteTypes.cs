@@ -11,7 +11,6 @@ namespace Dqlite.Net
         Text = 3,
         Blob = 4,
         Null = 5,
-        //UnixTime = 9,
         ISO8601 = 10,
         Boolean = 11,
     }

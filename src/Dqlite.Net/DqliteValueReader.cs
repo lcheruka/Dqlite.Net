@@ -246,6 +246,9 @@ namespace Dqlite.Net
             var dqliteType = GetDqliteType(ordinal);
             switch (dqliteType)
             {
+                case DqliteTypes.Boolean:
+                    return GetBoolean(ordinal);
+
                 case DqliteTypes.Integer:
                     return GetInt64(ordinal);
 
@@ -254,6 +257,9 @@ namespace Dqlite.Net
 
                 case DqliteTypes.Text:
                     return GetString(ordinal);
+
+                case DqliteTypes.ISO8601:
+                    return GetDateTime(ordinal);
 
                 case DqliteTypes.Null:
                     return GetNull<object>(ordinal);

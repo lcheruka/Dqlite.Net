@@ -6,5 +6,6 @@ namespace Dqlite.Net
     {
         public ulong Id { get; set; }
         public string Address { get; set;}
+        public DqliteNodeRoles Role {get;set;}
     }
 }

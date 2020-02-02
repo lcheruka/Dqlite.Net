@@ -69,6 +69,10 @@ namespace Dqlite.Net
                 nodes[i] = new DqliteNodeInfo();
                 nodes[i].Id = span.ReadUInt64();
                 nodes[i].Address = span.ReadString();
+                if(span.Length > 0)
+                {
+                    nodes[i].Role = (DqliteNodeRoles) span.ReadUInt64();
+                }
             }
 
             return nodes;
@@ -209,12 +213,6 @@ namespace Dqlite.Net
                             span.ReadUInt64();
                             rowValues[i] = null;
                             break;
-                        /*
-                        case DqliteTypes.UnixTime:
-                            //TODO
-                            rowValues[i] = span.ReadInt64();
-                            break;
-                        */
                         case DqliteTypes.ISO8601:
                             {
                                 var value = span.ReadString();

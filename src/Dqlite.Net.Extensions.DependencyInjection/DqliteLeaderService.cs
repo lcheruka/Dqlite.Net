@@ -9,14 +9,10 @@ namespace Dqlite.Net
         private Task executeTask;
 
         public virtual Task StartAsync(CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
+            => Task.CompletedTask;
 
         public virtual Task StopAsync(CancellationToken cancellationToken)
-        {
-            return OnRoleChangeAsync(false, cancellationToken);
-        }
+            => OnRoleChangeAsync(false, cancellationToken);
 
         protected abstract Task ExecuteAsync(CancellationToken cancellationToken);
 

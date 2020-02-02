@@ -12,6 +12,11 @@ namespace Dqlite.Net
             => span.Empty()
                     .Write(name);
 
+        public static void Write(Span<byte> span, ulong id, ulong value)
+            => span.Empty()
+                    .Write(id)
+                    .Write(value);
+
         public static void Write(Span<byte> span, DatabaseRecord database, string text)
             => span.Empty()
                     .Write((ulong)database.Id)

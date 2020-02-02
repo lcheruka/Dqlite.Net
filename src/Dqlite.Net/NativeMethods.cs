@@ -21,6 +21,9 @@ namespace Dqlite.Net
         public static extern int sqlite3_config(int value);
 
         [DllImport("dqlite", CallingConvention = CallingConvention.StdCall)]
+        public static extern ulong dqlite_generate_node_id(string address);
+
+        [DllImport("dqlite", CallingConvention = CallingConvention.StdCall)]
         public static extern int dqlite_node_create(ulong id, string address, string dataDir, out IntPtr node);
 
         [DllImport("dqlite", CallingConvention = CallingConvention.StdCall)]
