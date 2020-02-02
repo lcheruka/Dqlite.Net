@@ -15,6 +15,8 @@ namespace Dqlite.Net
         private DqliteConnection _connection;
         private PreparedStatement statement;
         private string _commandText;
+        private string _internalCommandText;
+        private string[] _parameterNames;
         private bool _prepared;
 
         
@@ -67,6 +69,7 @@ namespace Dqlite.Net
                 {
                     DisposePreparedStatement();
                     _commandText = value;
+                    _internalCommandText = Utils.ParseSql(value, out _parameterNames);
                 }
             }
         }
@@ -169,10 +172,10 @@ namespace Dqlite.Net
             CheckState();
 
             var closeConnection = behavior.HasFlag(CommandBehavior.CloseConnection);
-
+            var parameters = this.Parameters.Bind(_parameterNames);
             var record = (this.statement != null 
-                    ? this.Connection.Connector.ExecuteQuery(this.statement, this.Parameters.ToArray())
-                    : this.Connection.Connector.ExecuteQuery(this.Connection.CurrentDatabase, this.CommandText, this.Parameters.ToArray()));
+                    ? this.Connection.Connector.ExecuteQuery(this.statement, parameters)
+                    : this.Connection.Connector.ExecuteQuery(this.Connection.CurrentDatabase, this.CommandText, parameters));
 
             return DataReader = new DqliteDataReader(this, record, closeConnection);
         }
@@ -196,10 +199,10 @@ namespace Dqlite.Net
             CheckState();
 
             var closeConnection = behavior.HasFlag(CommandBehavior.CloseConnection);
-
+            var parameters = this.Parameters.Bind(_parameterNames);
             var record = await (this.statement != null 
-                    ? this.Connection.Connector.ExecuteQueryAsync(this.statement, this.Parameters.ToArray(), cancellationToken)
-                    : this.Connection.Connector.ExecuteQueryAsync(this.Connection.CurrentDatabase, this.CommandText, this.Parameters.ToArray(), cancellationToken));
+                    ? this.Connection.Connector.ExecuteQueryAsync(this.statement, parameters, cancellationToken)
+                    : this.Connection.Connector.ExecuteQueryAsync(this.Connection.CurrentDatabase, this.CommandText, parameters, cancellationToken));
 
             return DataReader = new DqliteDataReader(this, record, closeConnection);
         }
@@ -207,16 +210,16 @@ namespace Dqlite.Net
         public override int ExecuteNonQuery()
         {
             CheckState();
-
-            var result = this.Connection.Connector.ExecuteNonQuery(this.Connection.CurrentDatabase, this.CommandText, this.Parameters.ToArray());
+            var parameters = this.Parameters.Bind(_parameterNames);
+            var result = this.Connection.Connector.ExecuteNonQuery(this.Connection.CurrentDatabase, this.CommandText, parameters);
             return (int)result.RowCount;
         }
 
         public override async Task<int> ExecuteNonQueryAsync(CancellationToken cancellationToken)
         {
             CheckState();
-
-            var result = await this.Connection.Connector.ExecuteNonQueryAsync(this.Connection.CurrentDatabase, this.CommandText, this.Parameters.ToArray(), cancellationToken);
+            var parameters = this.Parameters.Bind(_parameterNames);
+            var result = await this.Connection.Connector.ExecuteNonQueryAsync(this.Connection.CurrentDatabase, this.CommandText, parameters, cancellationToken);
             return (int)result.RowCount;
         }
 

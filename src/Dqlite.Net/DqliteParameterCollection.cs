@@ -70,14 +70,6 @@ namespace Dqlite.Net
             return parameter;
         }
 
-        public virtual DqliteParameter AddWithValue(object value)
-        {
-            var parameter = new DqliteParameter(value);
-            Add(parameter);
-
-            return parameter;
-        }
-
         public override void Clear()
             => parameters.Clear();
 
@@ -159,10 +151,16 @@ namespace Dqlite.Net
             return index;
         }
 
-        public DqliteParameter[] ToArray()
+        public DqliteParameter[] Bind(string[] parameterNames)
         {
-            return this.parameters.ToArray();
-        }
+            var parameters = new DqliteParameter[parameterNames.Length];
+            var index = 0;
+            foreach(var parameterName in parameterNames)
+            {
+                parameters[index++] = this[parameterName];
+            }
 
+            return parameters;
+        }
     }
 }

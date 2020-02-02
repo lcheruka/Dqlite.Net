@@ -65,11 +65,6 @@ namespace Dqlite.Net
             this.Value = value;
         }
 
-        public DqliteParameter(object value)
-        {
-            this.Value = value;
-        }
-
         public override void ResetDbType()
             => ResetDqliteType();
 
