@@ -41,12 +41,12 @@ namespace Dqlite.Net
                     command.CommandText = "DELETE FROM Sample;";
                     command.ExecuteNonQuery();
 
-                    command.CommandText = "INSERT INTO Sample(n) VALUES(?);";
+                    command.CommandText = "INSERT INTO Sample(n) VALUES(@value);";
                     command.Prepare();
 
                     for(int i = 0; i < rows; ++i)
                     {
-                        command.Parameters.Add(new DqliteParameter(i));
+                        command.Parameters.AddWithValue("@value", i);
                         command.ExecuteNonQuery();
                         command.Parameters.Clear();
                     }
@@ -99,12 +99,12 @@ namespace Dqlite.Net
                     command.CommandText = "DELETE FROM Sample;";
                     await command.ExecuteNonQueryAsync();
 
-                    command.CommandText = "INSERT INTO Sample(n) VALUES(?);";
+                    command.CommandText = "INSERT INTO Sample(n) VALUES(@value);";
                     await command.PrepareAsync();
 
                     for(int i = 0; i < rows; ++i)
                     {
-                        command.Parameters.Add(new DqliteParameter(i));
+                        command.Parameters.AddWithValue("@value", i);
                         await command.ExecuteNonQueryAsync();
                         command.Parameters.Clear();
                     }

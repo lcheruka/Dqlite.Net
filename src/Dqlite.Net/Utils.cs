@@ -8,7 +8,6 @@ namespace Dqlite.Net
 {
     internal static class Utils
     {
-
         public static ulong PadWord(ulong value)
         {
             if (value % 8 != 0)
@@ -78,6 +77,49 @@ namespace Dqlite.Net
             }
 
             return length;
+        }
+
+        public static string ParseSql(string sqlText, out string[] parameterNames)
+        {
+            int IndexOfWhiteSpace(ReadOnlySpan<char> sql, int startIndex = 0)
+            {
+                var index = sql.Length;
+                for(;startIndex < sql.Length; ++startIndex)
+                {
+                    if(!Char.IsLetterOrDigit(sql[startIndex]))
+                    {
+                        index = startIndex;
+                        break;
+                    }
+                }
+                return index;
+            }
+
+            if(sqlText == null)
+            {
+                parameterNames = new string[0];
+                return null;
+            }
+            
+            var sql = new Span<char>(sqlText.ToCharArray());
+            var names = new List<string>();
+            for(int i = 0, j = 0, y = 0; i < sql.Length; ++i)
+            {
+                if(sql[i] == '@')
+                {
+                    j = IndexOfWhiteSpace(sql, i+1);
+                    
+                    names.Add(sql.Slice(i, j-i).ToString());
+                    sql[i++] = '?';
+                    for(y = i;j< sql.Length; ++j)
+                    {
+                        sql[y++] = sql[j];
+                    }
+                    sql = sql.Slice(0, y);
+                }
+            }
+            parameterNames = names.ToArray();
+            return sql.ToString();
         }
     }
 }    
