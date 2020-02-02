@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using static Dqlite.Net.NativeMethods;
 
 namespace Dqlite.Net
@@ -47,8 +48,18 @@ namespace Dqlite.Net
             dqlite_node_destroy(this.node);
         }
 
+        public static ulong GenerateNodeId(string address)
+            => dqlite_generate_node_id(address);
+            
+        public static DqliteNode Create(string address, string dataDir, DqliteNodeOptions options = null)
+        {
+            var id = dqlite_generate_node_id(address);
+            return Create(id, address, dataDir, options);
+        }
+
         public static DqliteNode Create(ulong id, string address, string dataDir, DqliteNodeOptions options = null)
         {
+            Directory.CreateDirectory(dataDir);
             CheckError(dqlite_node_create(id, address, dataDir, out var node), node);
             CheckError(dqlite_node_set_bind_address(node, options?.Address ?? address), node);
             

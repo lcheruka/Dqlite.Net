@@ -35,44 +35,73 @@ namespace Dqlite.Net
         public Task<DqliteNodeInfo> GetLeaderAsync(CancellationToken cancellationToken = default(CancellationToken)) 
             => this.connector.GetLeaderAsync();
 
-        public  void AddNode(ulong nodeId, string address)
+        public  void AddNode(ulong nodeId, string address, DqliteNodeRoles role = DqliteNodeRoles.Spare)
         {
             var length = PadWord( address.Length + 1) + 8;
             var data = (Span<byte>) stackalloc byte[length];
             Requests.Write(data, nodeId, address);
-            this.connector.SendRequest(RequestTypes.RequestJoin, data);
+            this.connector.SendRequest(RequestTypes.RequestAdd, data);
             this.connector.ReadResponse<bool>(ParseAknowledgmentResponse);
+
+            if(role != DqliteNodeRoles.Spare){
+                AssignNode(nodeId, role);
+            } 
         }
 
-        public async Task AddNodeAsync(ulong nodeId, string address, CancellationToken cancellationToken = default(CancellationToken))
+        public async Task AddNodeAsync(ulong nodeId, string address, DqliteNodeRoles role = DqliteNodeRoles.Spare,  CancellationToken cancellationToken = default(CancellationToken))
         {
             var length = PadWord( address.Length + 1) + 8;
             using(var slot = MemoryPool<byte>.Shared.Rent(length))
             {
                 var data = slot.Memory.Slice(0, length);
                 Requests.Write(data.Span, nodeId, address);
-                await this.connector.SendRequestAsync(RequestTypes.RequestJoin, data, cancellationToken);
+                await this.connector.SendRequestAsync(RequestTypes.RequestAdd, data, cancellationToken);
                 await this.connector.ReadResponseAsync<bool>(ParseAknowledgmentResponse, cancellationToken);
-            }            
+            }    
+
+            if(role != DqliteNodeRoles.Spare){
+                await AssignNodeAsync(nodeId, role, cancellationToken);
+            }        
         }
 
-        public void PromoteNode(ulong nodeId)
+        public void AssignNode(ulong nodeId, DqliteNodeRoles role)
+        {
+            const int length = 16;
+            var data = (Span<byte>) stackalloc byte[length];
+            Requests.Write(data, nodeId, (ulong)role);
+            this.connector.SendRequest(RequestTypes.RequestAssign, data);
+            this.connector.ReadResponse<bool>(ParseAknowledgmentResponse);
+        }
+        
+        public async Task AssignNodeAsync(ulong nodeId, DqliteNodeRoles role, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            const int length = 16;
+            using(var slot = MemoryPool<byte>.Shared.Rent(length))
+            {
+                var data = slot.Memory.Slice(0, length);
+                Requests.Write(data.Span, nodeId, (ulong)role);
+                await this.connector.SendRequestAsync(RequestTypes.RequestAssign, data, cancellationToken);
+                await this.connector.ReadResponseAsync<bool>(ParseAknowledgmentResponse, cancellationToken);
+            }  
+        }
+
+        public void Transfer(ulong nodeId)
         {
             const int length = 8;
             var data = (Span<byte>) stackalloc byte[length];
             Requests.Write(data, nodeId);
-            this.connector.SendRequest(RequestTypes.RequestPromote, data);
+            this.connector.SendRequest(RequestTypes.RequestTransfer, data);
             this.connector.ReadResponse<bool>(ParseAknowledgmentResponse);
         }
         
-        public async Task PromoteNodeAsync(ulong nodeId, CancellationToken cancellationToken = default(CancellationToken))
+        public async Task TransferAsync(ulong nodeId, CancellationToken cancellationToken = default(CancellationToken))
         {
             const int length = 8;
             using(var slot = MemoryPool<byte>.Shared.Rent(length))
             {
                 var data = slot.Memory.Slice(0, length);
                 Requests.Write(data.Span, nodeId);
-                await this.connector.SendRequestAsync(RequestTypes.RequestPromote, data, cancellationToken);
+                await this.connector.SendRequestAsync(RequestTypes.RequestTransfer, data, cancellationToken);
                 await this.connector.ReadResponseAsync<bool>(ParseAknowledgmentResponse, cancellationToken);
             }  
         }
@@ -97,7 +126,7 @@ namespace Dqlite.Net
                 await this.connector.ReadResponseAsync<bool>(ParseAknowledgmentResponse, cancellationToken);
             }  
         }
-
+        
         public DqliteNodeInfo[] GetNodes(CancellationToken cancellationToken = default(CancellationToken))
         {
             const int length = 8;

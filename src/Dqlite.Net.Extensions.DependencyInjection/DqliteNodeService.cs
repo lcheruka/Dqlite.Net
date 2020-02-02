@@ -12,11 +12,13 @@ namespace Dqlite.Net
     {
         private DqliteNode node;
         private readonly IEnumerable<IDqliteService> services;
-        private readonly DQliteOptions options;
+        private readonly IDqliteNodeStore store;
+        private readonly DqliteOptions options;
 
-        public DqliteNodeService(IEnumerable<IDqliteService> services, DQliteOptions options)
+        public DqliteNodeService(IEnumerable<IDqliteService> services, IDqliteNodeStore store, DqliteOptions options)
         {
             this.services = services;
+            this.store = store;
             this.options = options;
         }
 
@@ -26,15 +28,18 @@ namespace Dqlite.Net
             this.node = DqliteNode.Create(options.Id, options.Address, options.DataDir, options.NodeOptions);
             this.node.Start();
 
-            using(var client = new DqliteClient(this.options.ConnectionOptions, true))
+            var connectionOptions = new DqliteConnectionStringBuilder()
+            {
+                Nodes = this.store.Get()
+            };
+            using(var client = new DqliteClient(connectionOptions, true))
             {
                 await client.ConnectAsync(cancellationToken);
                 var nodes = await client.GetNodesAsync(cancellationToken);
                 var node = nodes.FirstOrDefault(x => x.Id == this.options.Id);
                 if(node == null)
                 {
-                    await client.AddNodeAsync(this.options.Id, this.options.Address, cancellationToken);
-                    await client.PromoteNodeAsync(this.options.Id, cancellationToken);
+                    await client.AddNodeAsync(this.options.Id, this.options.Address, DqliteNodeRoles.Voter, cancellationToken);
                 }
                 else if(node.Address != this.options.Address)
                 {

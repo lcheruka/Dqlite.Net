@@ -22,14 +22,16 @@ namespace Dqlite.Net
             return services;
         }
 
-        public static IServiceCollection AddDqlite(this IServiceCollection services, Action<DQliteOptions> configureOptions)
+        public static IServiceCollection AddDqlite(this IServiceCollection services, IDqliteNodeStore store, Action<DqliteOptions> configureOptions = null)
         {
-            var options = new DQliteOptions()
+            store = store ?? throw new ArgumentNullException(nameof(store));
+
+            var options = new DqliteOptions()
             {
                 Id = 1,
                 DataDir = Path.Combine(Path.GetTempPath(),"dqlite")
             };
-            configureOptions(options);
+            configureOptions?.Invoke(options);
 
             if(options.Id == 0)
             {
@@ -46,14 +48,13 @@ namespace Dqlite.Net
                 throw new ArgumentNullException("DataDir");
             }
 
-            if(options.Id != 1 && !options.ConnectionOptions.Nodes.Any(x => x != options.Address))
+            if(options.Id != 1 && store.Get().Any(x => x != options.Address))
             {
-                throw new ArgumentException("ConnectionOptions only contains address for current node");
+                throw new ArgumentException($"{nameof(store)} only contains address for current node");
             }
 
-            services.AddTransient<DqliteConnectionStringBuilder>(x => new DqliteConnectionStringBuilder(options.ConnectionOptions.ToString()));
-            services.AddTransient<DqliteConnection>(x => new DqliteConnection(options.ConnectionOptions.ToString()));
-            services.AddHostedService<DqliteNodeService>(x => new DqliteNodeService(x.GetServices<IDqliteService>(), options));
+            services.AddSingleton<IDqliteNodeStore>(store);
+            services.AddHostedService<DqliteNodeService>(x => new DqliteNodeService(x.GetServices<IDqliteService>(), store, options));
             return services;
         }
     }

@@ -144,7 +144,6 @@ namespace Dqlite.Net
                     return typeof(bool);
 
                 case DqliteTypes.ISO8601:
-                //case DqliteTypes.UnixTime:
                     return typeof(DateTime);
 
                 default:
