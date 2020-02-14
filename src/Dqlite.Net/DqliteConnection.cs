@@ -144,7 +144,7 @@ namespace Dqlite.Net
                 using(var cts = new CancellationTokenSource())
                 {
                     cts.CancelAfter(this.ConnectionTimeout * 1000);
-                    this.connector = new DqliteConnector(this.ConnectionOptions, false);
+                    this.connector = new DqliteConnector(this.ConnectionOptions, true);
                     this.connector.Connect(cts.Token);
                     this.database = this.connector.OpenDatabase(this.ConnectionOptions.DataSource);
                 }
@@ -158,6 +158,7 @@ namespace Dqlite.Net
                 this.connector = null;
                 _state = ConnectionState.Closed;
                 OnStateChange(new StateChangeEventArgs(ConnectionState.Connecting, ConnectionState.Closed));
+                throw;
             }
         }
 
@@ -190,7 +191,7 @@ namespace Dqlite.Net
                 using(var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
                 {
                     cts.CancelAfter(this.ConnectionTimeout * 1000);
-                    this.connector = new DqliteConnector(this.ConnectionOptions, false);
+                    this.connector = new DqliteConnector(this.ConnectionOptions, true);
                     await this.connector.ConnectAsync(cts.Token);
                     this.database = await this.connector.OpenDatabaseAsync(this.ConnectionOptions.DataSource, cts.Token);
                 }
@@ -203,6 +204,7 @@ namespace Dqlite.Net
                 this.connector = null;
                 _state = ConnectionState.Closed;
                 OnStateChange(new StateChangeEventArgs(ConnectionState.Connecting, ConnectionState.Closed));
+                throw;
             }            
         }
 

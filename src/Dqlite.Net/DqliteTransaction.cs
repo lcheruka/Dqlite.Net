@@ -25,7 +25,7 @@ namespace Dqlite.Net
         private readonly IsolationLevel _isolationLevel;
         private bool _completed;
 
-        public DqliteTransaction(DqliteConnection connection, IsolationLevel isolationLevel)
+        internal DqliteTransaction(DqliteConnection connection, IsolationLevel isolationLevel)
         {
             if (isolationLevel == IsolationLevel.ReadUncommitted
                 || isolationLevel == IsolationLevel.ReadCommitted
@@ -39,11 +39,11 @@ namespace Dqlite.Net
 
             if (isolationLevel == IsolationLevel.ReadUncommitted)
             {
-                _connection.Connector.ExecuteNonQuery(_connection.CurrentDatabase, "PRAGMA read_uncommitted = 1;", new DqliteParameter[]{});
+                _connection.Connector.ExecuteNonQuery(_connection.CurrentDatabase, "PRAGMA read_uncommitted = 1;");
             }
             else if (isolationLevel == IsolationLevel.Serializable)
             {
-                _connection.Connector.ExecuteNonQuery(_connection.CurrentDatabase, "PRAGMA read_uncommitted = 0;", new DqliteParameter[]{});
+                _connection.Connector.ExecuteNonQuery(_connection.CurrentDatabase, "PRAGMA read_uncommitted = 0;");
             }
             else if (isolationLevel != IsolationLevel.Unspecified)
             {
@@ -53,8 +53,7 @@ namespace Dqlite.Net
             _connection.Connector.ExecuteNonQuery(_connection.CurrentDatabase, 
                 IsolationLevel == IsolationLevel.Serializable
                     ? "BEGIN IMMEDIATE;"
-                    : "BEGIN;", 
-                new DqliteParameter[]{});
+                    : "BEGIN;");
         }
 
         public override void Commit()

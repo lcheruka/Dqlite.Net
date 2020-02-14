@@ -61,14 +61,15 @@ namespace Dqlite.Net
         {
             Directory.CreateDirectory(dataDir);
             CheckError(dqlite_node_create(id, address, dataDir, out var node), node);
-            CheckError(dqlite_node_set_bind_address(node, options?.Address ?? address), node);
             
             if(options?.DialFunction != null)
             {
                 CheckError(dqlite_node_set_connect_func(node, options.DialFunction, IntPtr.Zero), node);
             }
+
+            CheckError(dqlite_node_set_bind_address(node, options?.Address ?? address), node);
             
-            if(options?.NetworkLatency != null)
+            if(options != null && options.NetworkLatency != default(TimeSpan))
             {
                 CheckError(dqlite_node_set_network_latency(node, (ulong)options.NetworkLatency.TotalMilliseconds *  1000000UL), node);
             }

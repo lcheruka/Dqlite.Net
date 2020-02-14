@@ -265,7 +265,7 @@ namespace Dqlite.Net
                     return GetNull<object>(ordinal);
 
                 default:
-                    Debug.Assert(dqliteType == DqliteTypes.Null, "Unexpected column type: " + dqliteType);
+                    Debug.Assert(dqliteType == DqliteTypes.Blob, "Unexpected column type: " + dqliteType);
                     return GetBlob(ordinal);
             }
         }

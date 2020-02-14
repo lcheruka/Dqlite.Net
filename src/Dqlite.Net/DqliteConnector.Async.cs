@@ -115,93 +115,121 @@ namespace Dqlite.Net
         public async Task<PreparedStatement> PrepareStatementAsync(DatabaseRecord database, string text, CancellationToken cancellationToken = default(CancellationToken))
         {
             var length = PadWord(text.Length + 1) + 8;
+            async Task<PreparedStatement> PrepareStatementAsync(ReadOnlyMemory<byte> data)
+            {
+                await this.SendRequestAsync(RequestTypes.RequestPrepare, data, cancellationToken);
+                return await this.ReadResponseAsync<PreparedStatement>(ParsePreparedStatementResponse, cancellationToken);
+            }
             using(var slot = MemoryPool<byte>.Shared.Rent(length))
             {
                 var data = slot.Memory.Slice(0, length);
                 Requests.Write(data.Span, database, text);
-                await this.SendRequestAsync(RequestTypes.RequestPrepare, data, cancellationToken);
-                return await this.ReadResponseAsync<PreparedStatement>(ParsePreparedStatementResponse, cancellationToken);
+                return await RetryAsync<PreparedStatement>(PrepareStatementAsync, data);
             }
         }
 
         public async Task<StatementResult> ExecuteNonQueryAsync(PreparedStatement preparedStatement, DqliteParameter[] parameters, CancellationToken cancellationToken = default(CancellationToken))
         {
-            var length = 8 + GetSize(parameters);            
+            var length = 8 + GetSize(parameters);  
+            async Task<StatementResult> ExecuteNonQueryAsync(ReadOnlyMemory<byte> data)
+            {
+                await this.SendRequestAsync(RequestTypes.RequestExec, data, cancellationToken);
+                return await this.ReadResponseAsync<StatementResult>(ParseStatementResultResponse, cancellationToken);
+            }          
             using(var slot = MemoryPool<byte>.Shared.Rent(length))
             {
                 var data = slot.Memory.Slice(0, length);
                 Requests.Write(data.Span, preparedStatement, parameters);
-                await this.SendRequestAsync(RequestTypes.RequestExec, data, cancellationToken);
-                return await this.ReadResponseAsync<StatementResult>(ParseStatementResultResponse, cancellationToken);
+                return await RetryAsync<StatementResult>(ExecuteNonQueryAsync, data);
             }
         }
 
         public async Task<DqliteDataRecord> ExecuteQueryAsync(PreparedStatement preparedStatement, DqliteParameter[] parameters, CancellationToken cancellationToken = default(CancellationToken))
         {
             var length = 8 + GetSize(parameters);
+            async Task<DqliteDataRecord> ExecuteQueryAsync(ReadOnlyMemory<byte> data)
+            {
+                await this.SendRequestAsync(RequestTypes.RequestQuery, data, cancellationToken);
+                return await this.ReadResponseAsync<DqliteDataRecord>(ParseDataRecordResponse, cancellationToken);
+            }   
             using(var slot = MemoryPool<byte>.Shared.Rent(length))
             {
                 var data = slot.Memory.Slice(0, length);
                 Requests.Write(data.Span, preparedStatement, parameters);
-                await this.SendRequestAsync(RequestTypes.RequestQuery, data, cancellationToken);
-                return await this.ReadResponseAsync<DqliteDataRecord>(ParseDataRecordResponse, cancellationToken);
+                return await RetryAsync<DqliteDataRecord>(ExecuteQueryAsync, data);
             }
         }
 
         public async Task FinalizeStatementAsync(PreparedStatement preparedStatement, CancellationToken cancellationToken = default(CancellationToken))
         {
             const int length = 8;
+            async Task<bool> FinalizeStatementAsync(ReadOnlyMemory<byte> data)
+            {
+                await this.SendRequestAsync(RequestTypes.RequestFinalize, data, cancellationToken);
+                await this.ReadResponseAsync<bool>(ParseAknowledgmentResponse, cancellationToken);
+                return true;
+            }  
             using(var slot = MemoryPool<byte>.Shared.Rent(length))
             {
                 var data = slot.Memory.Slice(0, length);
                 Requests.Write(data.Span, preparedStatement);
-                await this.SendRequestAsync(RequestTypes.RequestFinalize, data, cancellationToken);
-                await this.ReadResponseAsync<bool>(ParseAknowledgmentResponse, cancellationToken);
+                await RetryAsync<bool>(FinalizeStatementAsync, data);
             }
         }
 
         public async Task<StatementResult> ExecuteNonQueryAsync(DatabaseRecord database, string text, DqliteParameter[] parameters, CancellationToken cancellationToken = default(CancellationToken))
         {
             var length = 8 + PadWord(text.Length+1) + GetSize(parameters);
+            async Task<StatementResult> ExecuteNonQueryAsync(ReadOnlyMemory<byte> data)
+            {
+                await this.SendRequestAsync(RequestTypes.RequestExecSQL, data, cancellationToken);
+                return await this.ReadResponseAsync<StatementResult>(ParseStatementResultResponse, cancellationToken);
+            }  
             using(var slot = MemoryPool<byte>.Shared.Rent(length))
             {
                 var data = slot.Memory.Slice(0, length);
                 Requests.Write(data.Span, database, text, parameters);
-                await this.SendRequestAsync(RequestTypes.RequestExecSQL, data, cancellationToken);
-                return await this.ReadResponseAsync<StatementResult>(ParseStatementResultResponse, cancellationToken);
+                return await RetryAsync<StatementResult>(ExecuteNonQueryAsync, data);
             }
         }
 
         public async Task<DqliteDataRecord> ExecuteQueryAsync(DatabaseRecord database, string text, DqliteParameter[] parameters, CancellationToken cancellationToken = default(CancellationToken))
         {
             var length = 8 + PadWord(text.Length+1) + GetSize(parameters);
+            async Task<DqliteDataRecord> ExecuteQueryAsync(ReadOnlyMemory<byte> data)
+            {
+                await this.SendRequestAsync(RequestTypes.RequestQuerySQL, data, cancellationToken);
+                return await this.ReadResponseAsync<DqliteDataRecord>(ParseDataRecordResponse, cancellationToken);
+            } 
             using(var slot = MemoryPool<byte>.Shared.Rent(length))
             {
                 var data = slot.Memory.Slice(0, length);
                 Requests.Write(data.Span, database, text, parameters);
-                await this.SendRequestAsync(RequestTypes.RequestQuerySQL, data, cancellationToken);
-                return await this.ReadResponseAsync<DqliteDataRecord>(ParseDataRecordResponse, cancellationToken);
+                return await RetryAsync<DqliteDataRecord>(ExecuteQueryAsync, data);
             }
         }
 
         public async Task InterruptStatementAsync(DatabaseRecord database, CancellationToken cancellationToken = default(CancellationToken))
         {
             const int length = 8;
-            using(var slot = MemoryPool<byte>.Shared.Rent(length))
+            async Task<bool> InterruptStatementAsync(ReadOnlyMemory<byte> data)
             {
-                var data = slot.Memory.Slice(0, length);
-                Requests.Write(data.Span, database);
                 await this.SendRequestAsync(RequestTypes.RequestInterrupt, data, cancellationToken);
                 while(!await this.ReadResponseAsync<bool>(ParseAknowledgmentResponse, cancellationToken))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                 }
+                return true;
             } 
-        }
+            using(var slot = MemoryPool<byte>.Shared.Rent(length))
+            {
+                var data = slot.Memory.Slice(0, length);
+                Requests.Write(data.Span, database);
+                await RetryAsync<bool>(InterruptStatementAsync, data);
+            } 
+        }       
 
-       
-
-        internal async Task SendRequestAsync(RequestTypes type, Memory<byte> data, CancellationToken cancellationToken = default(CancellationToken))
+        internal async Task SendRequestAsync(RequestTypes type, ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default(CancellationToken))
         {
             const int length = 8;
             void WriteBuffer(Memory<byte> memory)

@@ -101,83 +101,111 @@ namespace Dqlite.Net
         public PreparedStatement PrepareStatement(DatabaseRecord database, string text)
         {
             var length = PadWord(text.Length + 1) + 8;
+            PreparedStatement PrepareStatement(ReadOnlySpan<byte> data)
+            {
+                SendRequest(RequestTypes.RequestPrepare, data);
+                return ReadResponse<PreparedStatement>(ParsePreparedStatementResponse);
+            }
             using(var slot = MemoryPool<byte>.Shared.Rent(length))
             {
                 var data = slot.Memory.Span.Slice(0, length);
                 Requests.Write(data, database, text);
-                SendRequest(RequestTypes.RequestPrepare, data);
-                return ReadResponse<PreparedStatement>(ParsePreparedStatementResponse);
+                return Retry<PreparedStatement>(PrepareStatement, data);
             }
         }
 
-        public  StatementResult ExecuteNonQuery(PreparedStatement preparedStatement, DqliteParameter[] parameters)
+        public StatementResult ExecuteNonQuery(PreparedStatement preparedStatement, DqliteParameter[] parameters)
         {
             var length = 8 + GetSize(parameters);            
+            StatementResult ExecuteNonQuery(ReadOnlySpan<byte> data)
+            {
+                this.SendRequest(RequestTypes.RequestExec, data);
+                return this.ReadResponse<StatementResult>(ParseStatementResultResponse);
+            }
             using(var slot = MemoryPool<byte>.Shared.Rent(length))
             {
                 var data = slot.Memory.Span.Slice(0, length);
                 Requests.Write(data, preparedStatement, parameters);
-                this.SendRequest(RequestTypes.RequestExec, data);
-                return this.ReadResponse<StatementResult>(ParseStatementResultResponse);
+                return Retry<StatementResult>(ExecuteNonQuery, data);
             }
         }
 
         public DqliteDataRecord ExecuteQuery(PreparedStatement preparedStatement, DqliteParameter[] parameters)
         {
             var length = 8 + GetSize(parameters);
+            DqliteDataRecord ExecuteQuery(ReadOnlySpan<byte> data)
+            {
+                this.SendRequest(RequestTypes.RequestQuery, data);
+                return this.ReadResponse<DqliteDataRecord>(ParseDataRecordResponse);
+            }
             using(var slot = MemoryPool<byte>.Shared.Rent(length))
             {
                 var data = slot.Memory.Span.Slice(0, length);
                 Requests.Write(data, preparedStatement, parameters);
-                this.SendRequest(RequestTypes.RequestQuery, data);
-                return this.ReadResponse<DqliteDataRecord>(ParseDataRecordResponse);
+                return Retry(ExecuteQuery, data);
             }
         }
 
         public void FinalizeStatement(PreparedStatement preparedStatement)
         {
             const int length = 8;
+            bool FinalizeStatement(ReadOnlySpan<byte> data)
+            {
+                this.SendRequest(RequestTypes.RequestFinalize, data);
+                return this.ReadResponse<bool>(ParseAknowledgmentResponse);
+            }
             var data = (Span<byte>) stackalloc byte[length];
             Requests.Write(data, preparedStatement);
-            this.SendRequest(RequestTypes.RequestFinalize, data);
-            this.ReadResponse<bool>(ParseAknowledgmentResponse);
+            Retry<bool>(FinalizeStatement, data);
         }
 
         public StatementResult ExecuteNonQuery(DatabaseRecord database, string text, DqliteParameter[] parameters)
         {
             var length = 8 + PadWord(text.Length+1) + GetSize(parameters);
+            StatementResult ExecuteNonQuery(ReadOnlySpan<byte> data)
+            {
+                this.SendRequest(RequestTypes.RequestExecSQL, data);
+                return this.ReadResponse<StatementResult>(ParseStatementResultResponse);
+            }
             using(var slot = MemoryPool<byte>.Shared.Rent(length))
             {
                 var data = slot.Memory.Span.Slice(0, length);
                 Requests.Write(data, database, text, parameters);                
-                this.SendRequest(RequestTypes.RequestExecSQL, data);
-                return this.ReadResponse<StatementResult>(ParseStatementResultResponse);
+                return Retry<StatementResult>(ExecuteNonQuery, data);
             }
         }
 
         public DqliteDataRecord ExecuteQuery(DatabaseRecord database, string text, DqliteParameter[] parameters)
         {
             var length = 8 + PadWord(text.Length+1) + GetSize(parameters);
+            DqliteDataRecord ExecuteQuery(ReadOnlySpan<byte> data)
+            {
+                this.SendRequest(RequestTypes.RequestQuerySQL, data);
+                return this.ReadResponse<DqliteDataRecord>(ParseDataRecordResponse);
+            }
             using(var slot = MemoryPool<byte>.Shared.Rent(length))
             {
                 var data = slot.Memory.Span.Slice(0, length);
-                
                 Requests.Write(data, database, text, parameters);
-                this.SendRequest(RequestTypes.RequestQuerySQL, data);
-                return this.ReadResponse<DqliteDataRecord>(ParseDataRecordResponse);
+                return Retry<DqliteDataRecord>(ExecuteQuery, data);
             }
         }
 
         public void InterruptStatement(DatabaseRecord database)
         {
             const int length = 8;
+            bool InterruptStatement(ReadOnlySpan<byte> data)
+            {
+                this.SendRequest(RequestTypes.RequestInterrupt, data);
+                while(!this.ReadResponse<bool>(ParseAknowledgmentResponse))
+                {
+
+                }
+                return true;
+            }
             var data = (Span<byte>) stackalloc byte[length];
             Requests.Write(data, database);
-            this.SendRequest(RequestTypes.RequestInterrupt, data);
-            while(!this.ReadResponse<bool>(ParseAknowledgmentResponse))
-            {
-
-            }
+            Retry<bool>(InterruptStatement, data);
         }
 
         internal void SendRequest(RequestTypes type, ReadOnlySpan<byte> span)
