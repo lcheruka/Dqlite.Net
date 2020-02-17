@@ -303,7 +303,7 @@ namespace Dqlite.Net
 
             if(this.closeConnection)
             {
-                await this.command.DisposeAsync();
+                await this.connection.DisposeAsync();
             }
         }
     }

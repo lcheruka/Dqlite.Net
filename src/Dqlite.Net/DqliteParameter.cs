@@ -89,7 +89,7 @@ namespace Dqlite.Net
                 case DqliteTypes.Text:
                     return value?.ToString()?.Length ?? 0;
                 case DqliteTypes.Blob:
-                    return (value as byte[])?.Length ?? 0;
+                    return ((value as byte[])?.Length ?? 0) + 8;
             }
             return 0;
         }

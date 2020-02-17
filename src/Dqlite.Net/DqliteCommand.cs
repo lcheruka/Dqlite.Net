@@ -159,7 +159,7 @@ namespace Dqlite.Net
             
             if(this.statement == null)
             {
-                this.statement = await this.Connection.Connector.PrepareStatementAsync(Connection.CurrentDatabase, CommandText, cancellationToken);
+                this.statement = await this.Connection.Connector.PrepareStatementAsync(Connection.CurrentDatabase, _internalCommandText, cancellationToken);
                 _prepared = true;
             }
         }
@@ -175,7 +175,7 @@ namespace Dqlite.Net
             var parameters = this.Parameters.Bind(_parameterNames);
             var record = (this.statement != null 
                     ? this.Connection.Connector.ExecuteQuery(this.statement, parameters)
-                    : this.Connection.Connector.ExecuteQuery(this.Connection.CurrentDatabase, this.CommandText, parameters));
+                    : this.Connection.Connector.ExecuteQuery(this.Connection.CurrentDatabase, _internalCommandText, parameters));
 
             return DataReader = new DqliteDataReader(this, record, closeConnection);
         }
@@ -202,7 +202,7 @@ namespace Dqlite.Net
             var parameters = this.Parameters.Bind(_parameterNames);
             var record = await (this.statement != null 
                     ? this.Connection.Connector.ExecuteQueryAsync(this.statement, parameters, cancellationToken)
-                    : this.Connection.Connector.ExecuteQueryAsync(this.Connection.CurrentDatabase, this.CommandText, parameters, cancellationToken));
+                    : this.Connection.Connector.ExecuteQueryAsync(this.Connection.CurrentDatabase, _internalCommandText, parameters, cancellationToken));
 
             return DataReader = new DqliteDataReader(this, record, closeConnection);
         }
@@ -211,16 +211,16 @@ namespace Dqlite.Net
         {
             CheckState();
             var parameters = this.Parameters.Bind(_parameterNames);
-            var result = this.Connection.Connector.ExecuteNonQuery(this.Connection.CurrentDatabase, this.CommandText, parameters);
-            return (int)result.RowCount;
+            var result = this.Connection.Connector.ExecuteNonQuery(this.Connection.CurrentDatabase, _internalCommandText, parameters);
+            return (int) (result.LastRowId != 0 ? result.LastRowId : result.RowCount);
         }
 
         public override async Task<int> ExecuteNonQueryAsync(CancellationToken cancellationToken)
         {
             CheckState();
             var parameters = this.Parameters.Bind(_parameterNames);
-            var result = await this.Connection.Connector.ExecuteNonQueryAsync(this.Connection.CurrentDatabase, this.CommandText, parameters, cancellationToken);
-            return (int)result.RowCount;
+            var result = await this.Connection.Connector.ExecuteNonQueryAsync(this.Connection.CurrentDatabase, _internalCommandText, parameters, cancellationToken);
+            return (int) (result.LastRowId != 0 ? result.LastRowId : result.RowCount);
         }
 
         public override object ExecuteScalar()
@@ -300,7 +300,7 @@ namespace Dqlite.Net
         {
             if (disposing && this.DataReader != null)
             {
-                this.DataReader.Dispose();
+                await this.DataReader.DisposeAsync();
                 this.DataReader = null;
             }
 
