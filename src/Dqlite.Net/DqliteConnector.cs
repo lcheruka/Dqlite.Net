@@ -96,12 +96,28 @@ namespace Dqlite.Net
         
         public void Dispose()
         {
-            ((IDisposable)stream)?.Dispose();
+            try
+            {
+                ((IDisposable)stream)?.Dispose();
+            }
+            catch
+            {
+                // ignored
+            }
+            this.stream = null;
         }
 
-        public ValueTask DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
-            return ((IAsyncDisposable)stream)?.DisposeAsync() ?? new ValueTask();
+            try
+            {
+                await (((IAsyncDisposable)stream)?.DisposeAsync() ?? new ValueTask());
+            }
+            catch
+            {
+                // ignored
+            }
+            this.stream = null;
         }
     }
 }

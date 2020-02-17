@@ -131,6 +131,7 @@ namespace Dqlite.Net
         {
             const int length = 8;
             var data = (Span<byte>) stackalloc byte[length];
+            Requests.Write(data, 1UL);
             this.connector.SendRequest(RequestTypes.RequestCluster, data);
             return this.connector.ReadResponse<DqliteNodeInfo[]>(ParseNodesResponse);
         }
@@ -141,6 +142,7 @@ namespace Dqlite.Net
             using(var slot = MemoryPool<byte>.Shared.Rent(length))
             {
                 var data = slot.Memory.Slice(0, length);
+                Requests.Write(data.Span, 1UL);
                 await this.connector.SendRequestAsync(RequestTypes.RequestCluster, data, cancellationToken);
                 return await this.connector.ReadResponseAsync<DqliteNodeInfo[]>(ParseNodesResponse, cancellationToken);
             }

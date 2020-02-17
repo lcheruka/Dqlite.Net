@@ -300,7 +300,7 @@ namespace Dqlite.Net
         {
             if (disposing && this.DataReader != null)
             {
-                this.DataReader.Dispose();
+                await this.DataReader.DisposeAsync();
                 this.DataReader = null;
             }
 
